@@ -1,0 +1,2 @@
+# osrs-method-creator
+WIP!
