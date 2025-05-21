@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
-/// How many pixels equals one world unit
-const PIXEL_SCALE: f32 = 60.0;
+/// How zoomed
+const PIXEL_SCALE: f32 = 0.1;
 
 pub struct CameraPlugin;
 
@@ -15,6 +15,7 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera2d,
         Msaa::Off,
+        // TODO: remove this and programatically change based on room size
         Projection::Orthographic(OrthographicProjection {
             scale: PIXEL_SCALE,
             ..OrthographicProjection::default_2d()
