@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::schedule::RunningSet;
+use crate::schedule::FreeRoamSet;
 
 const GAME_TICK_SECONDS: f32 = 0.6;
 
@@ -21,7 +21,7 @@ impl Plugin for GameTickPlugin {
             timer: Timer::from_seconds(GAME_TICK_SECONDS, TimerMode::Repeating),
         })
         .add_event::<GameTickEvent>()
-        .add_systems(Update, game_tick_update.in_set(RunningSet::EntityUpdates));
+        .add_systems(Update, game_tick_update.in_set(FreeRoamSet::EntityUpdates));
     }
 }
 

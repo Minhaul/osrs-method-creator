@@ -1,16 +1,16 @@
 use bevy::prelude::*;
 
-use crate::state::GameState;
+use crate::state::ToolState;
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub enum RunningSet {
+pub enum FreeRoamSet {
     UserInput,
     SpawnEntities,
     EntityUpdates,
 }
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub enum PausedSet {
+pub enum EditingSet {
     UserInput,
     EntityUpdates,
 }
@@ -22,18 +22,18 @@ impl Plugin for SchedulePlugin {
         app.configure_sets(
             Update,
             (
-                RunningSet::UserInput,
-                RunningSet::SpawnEntities,
-                RunningSet::EntityUpdates,
+                FreeRoamSet::UserInput,
+                FreeRoamSet::SpawnEntities,
+                FreeRoamSet::EntityUpdates,
             )
                 .chain()
-                .run_if(in_state(GameState::Running)),
+                .run_if(in_state(ToolState::FreeRoam)),
         )
         .configure_sets(
             Update,
-            (PausedSet::UserInput, PausedSet::EntityUpdates)
+            (EditingSet::UserInput, EditingSet::EntityUpdates)
                 .chain()
-                .run_if(in_state(GameState::Paused)),
+                .run_if(in_state(ToolState::Editing)),
         );
     }
 }

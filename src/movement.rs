@@ -1,6 +1,6 @@
 use bevy::{math::ops::abs, prelude::*};
 
-use crate::{game_ticks::GameTickEvent, schedule::RunningSet};
+use crate::{game_ticks::GameTickEvent, schedule::FreeRoamSet};
 
 #[derive(Component, Default, Debug)]
 #[require(Speed)]
@@ -23,7 +23,7 @@ impl Plugin for MovementPlugin {
             Update,
             move_entities
                 .run_if(on_event::<GameTickEvent>)
-                .in_set(RunningSet::EntityUpdates),
+                .in_set(FreeRoamSet::EntityUpdates),
         );
     }
 }

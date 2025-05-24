@@ -16,6 +16,7 @@ use input::UserInputPlugin;
 use movement::MovementPlugin;
 use player::PlayerPlugin;
 use schedule::SchedulePlugin;
+use sequence::SequencePlugin;
 use state::StatePlugin;
 
 fn main() {
@@ -31,6 +32,7 @@ fn main() {
         .add_plugins(MovementPlugin)
         .add_plugins(PlayerPlugin)
         .add_plugins(SchedulePlugin)
+        .add_plugins(SequencePlugin)
         .add_plugins(StatePlugin);
 
     app.run();
