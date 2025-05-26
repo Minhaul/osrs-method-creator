@@ -6,6 +6,7 @@ use crate::state::ToolState;
 pub enum FreeRoamSet {
     UserInput,
     SpawnEntities,
+    // TODO: More granular sets i.e. GameTickUpdates, MovementChanges, Attacks
     EntityUpdates,
 }
 

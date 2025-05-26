@@ -2,9 +2,10 @@ use bevy::prelude::*;
 
 #[derive(States, Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum ToolState {
-    #[default]
     FreeRoam,
+    #[default]
     Editing,
+    EditingCatchup,
     Playback,
 }
 

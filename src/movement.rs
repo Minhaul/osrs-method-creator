@@ -36,6 +36,8 @@ fn move_entities(
         let mut distance = destination.0 - transform.translation.truncate();
 
         let mut speed_left = speed.0;
+
+        // Move to the diagonal if not there already
         while abs(abs(distance.x) - abs(distance.y)) > 0. && speed_left > 0 {
             if abs(distance.x) > abs(distance.y) {
                 transform.translation.x += distance.x.signum();
@@ -47,6 +49,7 @@ fn move_entities(
             speed_left -= 1;
         }
 
+        // Move along the diagonal as much as we can or until we reach the destination
         if speed_left > 0 {
             let to_travel = (speed_left as f32).min(abs(distance.x));
             transform.translation.x += to_travel * distance.x.signum();

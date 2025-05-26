@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::movement::{Destination, Speed};
 use crate::npc::Npc;
-use crate::schedule::FreeRoamSet;
+use crate::schedule::{EditingSet, FreeRoamSet};
 use crate::state::ToolState;
 
 #[derive(Component, Default, Debug)]
@@ -29,6 +29,23 @@ impl std::fmt::Display for PlayerAction {
     }
 }
 
+#[derive(Resource, Debug, Clone)]
+pub struct PlayerModifiers {
+    pub run: bool,
+    pub weapon_speed: u8,
+    pub weapon_range: u8,
+}
+
+impl Default for PlayerModifiers {
+    fn default() -> Self {
+        Self {
+            run: true,
+            weapon_speed: 4,
+            weapon_range: 1,
+        }
+    }
+}
+
 #[derive(Event, Default, Debug)]
 pub struct PlayerActionEvent {
     pub action: PlayerAction,
@@ -38,15 +55,26 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<PlayerActionEvent>()
-            .add_systems(Startup, spawn_player)
-            .add_systems(Startup, spawn_destination)
-            .add_systems(OnExit(ToolState::FreeRoam), despawn_player)
-            .add_systems(OnEnter(ToolState::Editing), spawn_player)
-            .add_systems(Update, update_action.in_set(FreeRoamSet::EntityUpdates))
+        app.insert_resource(PlayerModifiers::default())
+            .add_event::<PlayerActionEvent>()
+            .add_systems(Startup, (spawn_player, spawn_destination))
+            .add_systems(
+                OnExit(ToolState::FreeRoam),
+                (despawn_player, spawn_player).chain(),
+            )
+            .add_systems(
+                OnEnter(ToolState::EditingCatchup),
+                (despawn_player, spawn_player).chain(),
+            )
             .add_systems(
                 Update,
-                highlight_destination.in_set(FreeRoamSet::EntityUpdates),
+                (update_action, update_modifiers, highlight_destination)
+                    .in_set(FreeRoamSet::EntityUpdates),
+            )
+            .add_systems(
+                Update,
+                (update_action, update_modifiers, highlight_destination)
+                    .in_set(EditingSet::EntityUpdates),
             );
     }
 }
@@ -99,13 +127,23 @@ fn update_action(
 
         // Overwrite the current action with the most recent one
         match &player_action_event.action {
-            PlayerAction::Move(destination) => {
-                commands.entity(entity).insert(Destination(*destination))
-            }
-            PlayerAction::Attack(_) => commands.entity(entity).insert(Destination(Vec2::ZERO)), // TODO
+            PlayerAction::Move(dest) => commands.entity(entity).insert(Destination(*dest)),
+            // TODO
+            PlayerAction::Attack(_) => commands.entity(entity).insert(Destination(Vec2::ZERO)),
             PlayerAction::Idle => commands.entity(entity).try_remove::<Destination>(),
         };
     }
+}
+
+fn update_modifiers(
+    player_modifiers: Res<PlayerModifiers>,
+    mut query: Query<&mut Speed, With<Player>>,
+) {
+    let Ok(mut speed) = query.single_mut() else {
+        panic!("PLAYER HAS NO SPEED???");
+    };
+
+    speed.0 = if player_modifiers.run { 2 } else { 1 };
 }
 
 fn highlight_destination(
@@ -118,15 +156,13 @@ fn highlight_destination(
         panic!("NO DESTINATION MARKER ENTITY???");
     };
 
-    if !player_query.is_empty() {
-        let Ok(Destination(location)) = player_query.single() else {
-            panic!("MORE THAN ONE PLAYER????");
-        };
-        destination_marker_transform.translation.x = location.x;
-        destination_marker_transform.translation.y = location.y;
-
-        *destination_marker_visibility = Visibility::Visible;
-    } else {
+    // Only highlight the destination if there is one
+    let Ok(Destination(location)) = player_query.single() else {
         *destination_marker_visibility = Visibility::Hidden;
-    }
+        return;
+    };
+    destination_marker_transform.translation.x = location.x;
+    destination_marker_transform.translation.y = location.y;
+
+    *destination_marker_visibility = Visibility::Visible;
 }
