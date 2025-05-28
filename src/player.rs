@@ -117,10 +117,10 @@ fn despawn_player(mut commands: Commands, mut query: Query<Entity, With<Player>>
 
 fn update_action(
     mut commands: Commands,
-    mut player_action_event_reader: EventReader<PlayerActionEvent>,
+    mut player_action_evr: EventReader<PlayerActionEvent>,
     mut query: Query<Entity, With<Player>>,
 ) {
-    for player_action_event in player_action_event_reader.read() {
+    for player_action_event in player_action_evr.read() {
         let Ok(entity) = query.single_mut() else {
             panic!("MORE THAN ONE PLAYER????");
         };

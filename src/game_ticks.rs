@@ -28,11 +28,11 @@ impl Plugin for GameTickPlugin {
 fn game_tick_update(
     mut tick_timer: ResMut<GameTickTimer>,
     time: Res<Time>,
-    mut game_tick_event_writer: EventWriter<GameTickEvent>,
+    mut game_tick_evw: EventWriter<GameTickEvent>,
 ) {
     tick_timer.timer.tick(time.delta());
 
     if tick_timer.timer.finished() {
-        game_tick_event_writer.write(GameTickEvent);
+        game_tick_evw.write(GameTickEvent);
     }
 }

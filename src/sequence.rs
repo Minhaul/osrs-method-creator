@@ -25,10 +25,10 @@ impl Plugin for SequencePlugin {
 }
 
 fn update_current_action(
-    mut player_action_event_reader: EventReader<PlayerActionEvent>,
+    mut player_action_evr: EventReader<PlayerActionEvent>,
     mut action_sequence: ResMut<ActionSequence>,
 ) {
-    for player_action_event in player_action_event_reader.read() {
+    for player_action_event in player_action_evr.read() {
         let current_tick = action_sequence.current_tick;
         action_sequence.sequence[current_tick].0 = player_action_event.action.clone();
     }

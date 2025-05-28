@@ -170,9 +170,9 @@ fn mouse_input(
     window_query: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     input: Res<ButtonInput<MouseButton>>,
-    mut player_action_event_writer: EventWriter<PlayerActionEvent>,
+    mut player_action_evw: EventWriter<PlayerActionEvent>,
 ) {
-    if !(input.just_pressed(MouseButton::Left)) {
+    if !input.just_pressed(MouseButton::Left) {
         return;
     }
 
@@ -192,7 +192,7 @@ fn mouse_input(
         return;
     };
 
-    player_action_event_writer.write(PlayerActionEvent {
+    player_action_evw.write(PlayerActionEvent {
         action: PlayerAction::Move(world_position.round()),
     });
 }
