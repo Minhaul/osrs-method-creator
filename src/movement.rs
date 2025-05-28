@@ -1,11 +1,16 @@
 use bevy::{math::ops::abs, prelude::*};
 
-use crate::{game_ticks::GameTickEvent, schedule::FreeRoamSet};
+use crate::{
+    game_ticks::GameTickEvent,
+    schedule::{EditingCatchupSet, FreeRoamSet},
+};
 
+/// Component to indicate a desire to move to the given location
 #[derive(Component, Default, Debug)]
 #[require(Speed)]
 pub struct Destination(pub Vec2);
 
+/// Speed in tiles per tick of the Entity
 #[derive(Component, Debug)]
 pub struct Speed(pub u8);
 
@@ -24,6 +29,12 @@ impl Plugin for MovementPlugin {
             move_entities
                 .run_if(on_event::<GameTickEvent>)
                 .in_set(FreeRoamSet::EntityUpdates),
+        )
+        .add_systems(
+            Update,
+            move_entities
+                .run_if(on_event::<GameTickEvent>)
+                .in_set(EditingCatchupSet::Movement),
         );
     }
 }

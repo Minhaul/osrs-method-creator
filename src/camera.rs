@@ -1,7 +1,8 @@
 use std::ops::DerefMut;
 
 use bevy::{
-    input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel}, prelude::*
+    input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
+    prelude::*,
 };
 
 /// How zoomed by default
@@ -14,8 +15,7 @@ const PROJ_SCALE_MAX: f32 = 0.2;
 const SCROLL_LINE_SCALE: f32 = 1.1;
 
 /// The amount to zoom per scroll pixel unit
-// TODO: Test on laptop
-const SCROLL_PIXEL_SCALE: f32 = 1.01;
+const SCROLL_PIXEL_SCALE: f32 = 1.001;
 
 /// The speed of panning using keyboard keys
 const KEY_PAN_SPEED: f32 = 2.0;
@@ -34,7 +34,6 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera2d,
         Msaa::Off,
-        // TODO: remove this and programatically change based on room size
         Projection::Orthographic(OrthographicProjection {
             scale: DEFAULT_PROJ_SCALE,
             ..OrthographicProjection::default_2d()
@@ -42,28 +41,29 @@ fn spawn_camera(mut commands: Commands) {
     ));
 }
 
-fn zoom_camera(
-    mut query: Query<&mut Projection>,
-    mut mouse_scroll_evr: EventReader<MouseWheel>,
-) {
+fn zoom_camera(mut query: Query<&mut Projection>, mut mouse_scroll_evr: EventReader<MouseWheel>) {
     for scroll in mouse_scroll_evr.read() {
-        let Ok(mut projection) = query.single_mut() else {
-            panic!("NOT JUST ONE PROJECTION???");
-        };
+        let mut projection = query.single_mut().expect("SHOULD BE ONE PROJECTION");
 
         match projection.deref_mut() {
             Projection::Orthographic(ortho) => {
                 let scale = match scroll.unit {
+                    // e.g. hardware mouse wheels
                     MouseScrollUnit::Line => SCROLL_LINE_SCALE,
+                    // e.g. trackpad scrolling
                     MouseScrollUnit::Pixel => SCROLL_PIXEL_SCALE,
                 };
 
-                if scroll.y.is_sign_positive() {
-                    ortho.scale /= scroll.y.abs() * scale;
-                } else {
-                    ortho.scale *= scroll.y.abs() * scale;
+                // Do one operation per scroll amount
+                for _ in 0..scroll.y.abs() as u32 {
+                    if scroll.y.is_sign_positive() {
+                        ortho.scale /= scale;
+                    } else {
+                        ortho.scale *= scale;
+                    }
                 }
 
+                // Clamp the zoom between some reasonable values
                 ortho.scale = ortho.scale.clamp(PROJ_SCALE_MIN, PROJ_SCALE_MAX);
             }
             _ => panic!("SHOULD ONLY HAVE ORTHO!"),
@@ -85,16 +85,16 @@ fn pan_camera(
         }
     } else {
         if key_input.pressed(KeyCode::KeyW) || key_input.pressed(KeyCode::ArrowUp) {
-            delta.y -= KEY_PAN_SPEED;
-        }
-        if key_input.pressed(KeyCode::KeyA) || key_input.pressed(KeyCode::ArrowLeft) {
-            delta.x -= KEY_PAN_SPEED;
-        }
-        if key_input.pressed(KeyCode::KeyS) || key_input.pressed(KeyCode::ArrowDown) {
             delta.y += KEY_PAN_SPEED;
         }
-        if key_input.pressed(KeyCode::KeyD) || key_input.pressed(KeyCode::ArrowRight) {
+        if key_input.pressed(KeyCode::KeyA) || key_input.pressed(KeyCode::ArrowLeft) {
             delta.x += KEY_PAN_SPEED;
+        }
+        if key_input.pressed(KeyCode::KeyS) || key_input.pressed(KeyCode::ArrowDown) {
+            delta.y -= KEY_PAN_SPEED;
+        }
+        if key_input.pressed(KeyCode::KeyD) || key_input.pressed(KeyCode::ArrowRight) {
+            delta.x -= KEY_PAN_SPEED;
         }
     }
 
@@ -102,15 +102,13 @@ fn pan_camera(
         return;
     }
 
-    let Ok((projection, mut transform)) = query.single_mut() else {
-        panic!("SHOULD BE ONE OF THESE!");
-    };
+    let (projection, mut transform) = query.single_mut().expect("SHOULD BE ONE OF THESE");
 
     match projection {
         Projection::Orthographic(ortho) => {
             transform.translation.x -= delta.x * ortho.scale;
             transform.translation.y += delta.y * ortho.scale;
-        },
+        }
         _ => panic!("SHOULD ONLY HAVE ORTHO!"),
     }
 }

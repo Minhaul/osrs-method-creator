@@ -12,8 +12,18 @@ pub enum FreeRoamSet {
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum EditingSet {
+    ReconcileSequenceLocation,
     UserInput,
     EntityUpdates,
+}
+
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub enum EditingCatchupSet {
+    Events,
+    GameTick,
+    EntityUpdates,
+    Movement,
+    Checks,
 }
 
 pub struct SchedulePlugin;
@@ -32,9 +42,25 @@ impl Plugin for SchedulePlugin {
         )
         .configure_sets(
             Update,
-            (EditingSet::UserInput, EditingSet::EntityUpdates)
+            (
+                EditingSet::ReconcileSequenceLocation,
+                EditingSet::UserInput,
+                EditingSet::EntityUpdates,
+            )
                 .chain()
                 .run_if(in_state(ToolState::Editing)),
+        )
+        .configure_sets(
+            Update,
+            (
+                EditingCatchupSet::GameTick,
+                EditingCatchupSet::EntityUpdates,
+                EditingCatchupSet::Movement,
+                EditingCatchupSet::Checks,
+                EditingCatchupSet::Events,
+            )
+                .chain()
+                .run_if(in_state(ToolState::EditingCatchup)),
         );
     }
 }

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::schedule::FreeRoamSet;
+use crate::schedule::{EditingCatchupSet, FreeRoamSet};
 
 const GAME_TICK_SECONDS: f32 = 0.6;
 
@@ -21,11 +21,15 @@ impl Plugin for GameTickPlugin {
             timer: Timer::from_seconds(GAME_TICK_SECONDS, TimerMode::Repeating),
         })
         .add_event::<GameTickEvent>()
-        .add_systems(Update, game_tick_update.in_set(FreeRoamSet::EntityUpdates));
+        .add_systems(
+            Update,
+            game_tick_real_time.in_set(FreeRoamSet::EntityUpdates),
+        )
+        .add_systems(Update, game_tick_update.in_set(EditingCatchupSet::GameTick));
     }
 }
 
-fn game_tick_update(
+fn game_tick_real_time(
     mut tick_timer: ResMut<GameTickTimer>,
     time: Res<Time>,
     mut game_tick_evw: EventWriter<GameTickEvent>,
@@ -35,4 +39,8 @@ fn game_tick_update(
     if tick_timer.timer.finished() {
         game_tick_evw.write(GameTickEvent);
     }
+}
+
+fn game_tick_update(mut game_tick_evw: EventWriter<GameTickEvent>) {
+    game_tick_evw.write(GameTickEvent);
 }

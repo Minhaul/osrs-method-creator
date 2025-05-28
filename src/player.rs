@@ -2,16 +2,19 @@ use bevy::prelude::*;
 
 use crate::movement::{Destination, Speed};
 use crate::npc::Npc;
-use crate::schedule::{EditingSet, FreeRoamSet};
+use crate::schedule::{EditingCatchupSet, EditingSet, FreeRoamSet};
 use crate::state::ToolState;
 
+/// Player marker component
 #[derive(Component, Default, Debug)]
 pub struct Player;
 
+/// Marker component for the player's destination tile
 #[derive(Component, Default, Debug)]
 struct DestinationMarker;
 
-#[derive(Default, Debug, Clone)]
+/// What actions a player can take
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum PlayerAction {
     #[default]
     Idle,
@@ -29,6 +32,7 @@ impl std::fmt::Display for PlayerAction {
     }
 }
 
+/// Modifiers to the player's behavior
 #[derive(Resource, Debug, Clone)]
 pub struct PlayerModifiers {
     pub run: bool,
@@ -46,6 +50,7 @@ impl Default for PlayerModifiers {
     }
 }
 
+/// Event to communicate a desired player action
 #[derive(Event, Default, Debug)]
 pub struct PlayerActionEvent {
     pub action: PlayerAction,
@@ -64,8 +69,9 @@ impl Plugin for PlayerPlugin {
             )
             .add_systems(
                 OnEnter(ToolState::EditingCatchup),
-                (despawn_player, spawn_player).chain(),
+                (despawn_player, spawn_player, hide_player).chain(),
             )
+            .add_systems(OnExit(ToolState::EditingCatchup), show_player)
             .add_systems(
                 Update,
                 (update_action, update_modifiers, highlight_destination)
@@ -75,6 +81,10 @@ impl Plugin for PlayerPlugin {
                 Update,
                 (update_action, update_modifiers, highlight_destination)
                     .in_set(EditingSet::EntityUpdates),
+            )
+            .add_systems(
+                Update,
+                (update_action, update_modifiers).in_set(EditingCatchupSet::EntityUpdates),
             );
     }
 }
@@ -90,7 +100,24 @@ fn spawn_player(
         Transform::from_translation(Vec3::ZERO),
         Player,
         Speed(2),
+        Visibility::Visible,
     ));
+}
+
+fn despawn_player(mut commands: Commands, mut query: Query<Entity, With<Player>>) {
+    let entity = query.single_mut().expect("SHOULD BE ONE PLAYER");
+
+    commands.entity(entity).despawn();
+}
+
+fn show_player(mut query: Query<&mut Visibility, With<Player>>) {
+    let mut vis = query.single_mut().expect("SHOULD BE ONE PLAYER");
+    *vis = Visibility::Visible;
+}
+
+fn hide_player(mut query: Query<&mut Visibility, With<Player>>) {
+    let mut vis = query.single_mut().expect("SHOULD BE ONE PLAYER");
+    *vis = Visibility::Hidden;
 }
 
 fn spawn_destination(
@@ -107,23 +134,13 @@ fn spawn_destination(
     ));
 }
 
-fn despawn_player(mut commands: Commands, mut query: Query<Entity, With<Player>>) {
-    let Ok(entity) = query.single_mut() else {
-        panic!("MORE THAN ONE PLAYER????");
-    };
-
-    commands.entity(entity).despawn();
-}
-
 fn update_action(
     mut commands: Commands,
     mut player_action_evr: EventReader<PlayerActionEvent>,
     mut query: Query<Entity, With<Player>>,
 ) {
     for player_action_event in player_action_evr.read() {
-        let Ok(entity) = query.single_mut() else {
-            panic!("MORE THAN ONE PLAYER????");
-        };
+        let entity = query.single_mut().expect("SHOULD BE ONE PLAYER");
 
         // Overwrite the current action with the most recent one
         match &player_action_event.action {
@@ -139,9 +156,7 @@ fn update_modifiers(
     player_modifiers: Res<PlayerModifiers>,
     mut query: Query<&mut Speed, With<Player>>,
 ) {
-    let Ok(mut speed) = query.single_mut() else {
-        panic!("PLAYER HAS NO SPEED???");
-    };
+    let mut speed = query.single_mut().expect("SHOULD BE ONE PLAYER WITH SPEED");
 
     speed.0 = if player_modifiers.run { 2 } else { 1 };
 }
@@ -150,11 +165,9 @@ fn highlight_destination(
     mut marker_query: Query<(&mut Transform, &mut Visibility), With<DestinationMarker>>,
     player_query: Query<&Destination, With<Player>>,
 ) {
-    let Ok((mut destination_marker_transform, mut destination_marker_visibility)) =
-        marker_query.single_mut()
-    else {
-        panic!("NO DESTINATION MARKER ENTITY???");
-    };
+    let (mut destination_marker_transform, mut destination_marker_visibility) = marker_query
+        .single_mut()
+        .expect("SHOULD BE ONE DESTINATION MARKER");
 
     // Only highlight the destination if there is one
     let Ok(Destination(location)) = player_query.single() else {

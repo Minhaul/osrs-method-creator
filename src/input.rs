@@ -8,6 +8,7 @@ use crate::schedule::{EditingSet, FreeRoamSet};
 use crate::sequence::ActionSequence;
 use crate::state::ToolState;
 
+/// Max length of the tick sequence shown in the UI
 const MAX_UI_TICK_SEQUENCE_LEN: usize = 10;
 
 pub struct UserInputPlugin;
@@ -33,7 +34,6 @@ impl Plugin for UserInputPlugin {
     }
 }
 
-// #[allow(clippy::too_many_arguments)]
 fn draw_ui(
     mut contexts: EguiContexts,
     state: Res<State<ToolState>>,
@@ -43,6 +43,7 @@ fn draw_ui(
     window_query: Query<&Window, With<PrimaryWindow>>,
     player_query: Query<&Transform, With<Player>>,
 ) {
+    // Method creation UI section
     egui::Window::new("Method Creation")
         .collapsible(false)
         .resizable(false)
@@ -66,11 +67,9 @@ fn draw_ui(
             ui.separator();
 
             // Player Information
-            let Ok(current_transform) = player_query.single() else {
-                panic!("MORE THAN ONE PLAYER???");
-            };
+            let current_transform = player_query.single().expect("SHOULD BE ONE PLAYER");
             let current_location = current_transform.translation.truncate();
-            let current_action = action_sequence.sequence[action_sequence.current_tick]
+            let current_action = action_sequence.sequence[action_sequence.target_tick]
                 .0
                 .clone();
 
@@ -84,29 +83,28 @@ fn draw_ui(
                 let mut ending_num = sequence_len;
 
                 if sequence_len > MAX_UI_TICK_SEQUENCE_LEN {
-                    if action_sequence.current_tick + (MAX_UI_TICK_SEQUENCE_LEN / 2) < sequence_len
-                        && action_sequence.current_tick > (MAX_UI_TICK_SEQUENCE_LEN / 2)
+                    if action_sequence.target_tick + (MAX_UI_TICK_SEQUENCE_LEN / 2) < sequence_len
+                        && action_sequence.target_tick > (MAX_UI_TICK_SEQUENCE_LEN / 2)
                     {
-                        starting_num =
-                            action_sequence.current_tick - (MAX_UI_TICK_SEQUENCE_LEN / 2);
-                        ending_num = action_sequence.current_tick + (MAX_UI_TICK_SEQUENCE_LEN / 2);
-                    } else if action_sequence.current_tick + (MAX_UI_TICK_SEQUENCE_LEN / 2)
+                        starting_num = action_sequence.target_tick - (MAX_UI_TICK_SEQUENCE_LEN / 2);
+                        ending_num = action_sequence.target_tick + (MAX_UI_TICK_SEQUENCE_LEN / 2);
+                    } else if action_sequence.target_tick + (MAX_UI_TICK_SEQUENCE_LEN / 2)
                         < sequence_len
                     {
                         ending_num = MAX_UI_TICK_SEQUENCE_LEN;
-                    } else if action_sequence.current_tick > (MAX_UI_TICK_SEQUENCE_LEN / 2) {
+                    } else if action_sequence.target_tick > (MAX_UI_TICK_SEQUENCE_LEN / 2) {
                         starting_num = sequence_len - MAX_UI_TICK_SEQUENCE_LEN;
                     } else {
                         panic!("SHOULD HAVE COVERED ALL CASES!");
                     }
                 }
 
-                ui.add_enabled_ui(action_sequence.current_tick > 0, |ui| {
+                ui.add_enabled_ui(action_sequence.target_tick > 0, |ui| {
                     if ui.button("<<").clicked() {
-                        action_sequence.current_tick = 0;
+                        action_sequence.target_tick = 0;
                     }
-                    if ui.button("<").clicked() && action_sequence.current_tick > 0 {
-                        action_sequence.current_tick -= 1;
+                    if ui.button("<").clicked() && action_sequence.target_tick > 0 {
+                        action_sequence.target_tick -= 1;
                     }
                 });
 
@@ -115,7 +113,7 @@ fn draw_ui(
                 }
                 ui.add_enabled_ui(state.get() == &ToolState::Editing, |ui| {
                     for i in starting_num..ending_num {
-                        ui.selectable_value(&mut action_sequence.current_tick, i, format!("{i}"));
+                        ui.selectable_value(&mut action_sequence.target_tick, i, format!("{i}"));
                     }
                 });
                 if ending_num < sequence_len {
@@ -123,32 +121,31 @@ fn draw_ui(
                 }
 
                 #[allow(clippy::collapsible_else_if)]
-                if action_sequence.current_tick == sequence_len - 1 {
+                if action_sequence.target_tick == sequence_len - 1 {
                     if ui.button("+").clicked() {
                         action_sequence
                             .sequence
-                            .push((PlayerAction::Idle, player_modifiers.clone()));
-                        action_sequence.current_tick += 1;
+                            .extend_from_within(sequence_len - 1..);
+                        action_sequence.target_tick += 1;
                     }
                 } else {
-                    if ui.button(">").clicked() && action_sequence.current_tick < sequence_len - 1 {
-                        action_sequence.current_tick += 1;
+                    if ui.button(">").clicked() && action_sequence.target_tick < sequence_len - 1 {
+                        action_sequence.target_tick += 1;
                     }
                 }
-                ui.add_enabled_ui(action_sequence.current_tick < sequence_len - 1, |ui| {
+                ui.add_enabled_ui(action_sequence.target_tick < sequence_len - 1, |ui| {
                     if ui.button(">>").clicked() {
-                        action_sequence.current_tick = sequence_len - 1;
+                        action_sequence.target_tick = sequence_len - 1;
                     }
                 });
             });
         });
 
-    let Ok(window) = window_query.single() else {
-        panic!("NO WINDOW???");
-    };
+    let window = window_query.single().expect("SHOULD BE ONE WINDOW");
 
     let window_width = window.width();
 
+    // Player modifier UI section
     egui::Window::new("Player Modifiers")
         .collapsible(false)
         .resizable(false)
