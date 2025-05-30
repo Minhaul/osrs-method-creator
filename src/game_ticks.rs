@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::schedule::{EditingCatchupSet, FreeRoamSet};
+use crate::schedule::{EditingCatchup, EditingCatchupSet, FreeRoamSet};
 
 const GAME_TICK_SECONDS: f32 = 0.6;
 
@@ -25,7 +25,10 @@ impl Plugin for GameTickPlugin {
             Update,
             game_tick_real_time.in_set(FreeRoamSet::EntityUpdates),
         )
-        .add_systems(Update, game_tick_update.in_set(EditingCatchupSet::GameTick));
+        .add_systems(
+            EditingCatchup,
+            game_tick_update.in_set(EditingCatchupSet::GameTick),
+        );
     }
 }
 

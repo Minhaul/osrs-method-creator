@@ -2,7 +2,7 @@ use bevy::{math::ops::abs, prelude::*};
 
 use crate::{
     game_ticks::GameTickEvent,
-    schedule::{EditingCatchupSet, FreeRoamSet},
+    schedule::{EditingCatchup, EditingCatchupSet, FreeRoamSet},
 };
 
 /// Component to indicate a desire to move to the given location
@@ -31,7 +31,7 @@ impl Plugin for MovementPlugin {
                 .in_set(FreeRoamSet::EntityUpdates),
         )
         .add_systems(
-            Update,
+            EditingCatchup,
             move_entities
                 .run_if(on_event::<GameTickEvent>)
                 .in_set(EditingCatchupSet::Movement),

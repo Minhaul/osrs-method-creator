@@ -11,6 +11,9 @@ use crate::state::ToolState;
 /// Max length of the tick sequence shown in the UI
 const MAX_UI_TICK_SEQUENCE_LEN: usize = 10;
 
+#[derive(Event, Default, Debug)]
+pub struct EditingResetEvent;
+
 pub struct UserInputPlugin;
 
 impl Plugin for UserInputPlugin {
@@ -18,6 +21,7 @@ impl Plugin for UserInputPlugin {
         app.add_plugins(EguiPlugin {
             enable_multipass_for_primary_context: true,
         })
+        .add_event::<EditingResetEvent>()
         .add_systems(EguiContextPass, draw_ui)
         .add_systems(
             Update,
@@ -34,15 +38,23 @@ impl Plugin for UserInputPlugin {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_ui(
     mut contexts: EguiContexts,
     state: Res<State<ToolState>>,
     mut next_state: ResMut<NextState<ToolState>>,
+    mut editing_reset_evw: EventWriter<EditingResetEvent>,
     mut action_sequence: ResMut<ActionSequence>,
     mut player_modifiers: ResMut<PlayerModifiers>,
     window_query: Query<&Window, With<PrimaryWindow>>,
     player_query: Query<&Transform, With<Player>>,
+    mut reset_window: Local<bool>,
 ) {
+    let window = window_query.single().expect("SHOULD BE ONE WINDOW");
+
+    let window_width = window.width();
+    let window_heigth = window.height();
+
     // Method creation UI section
     egui::Window::new("Method Creation")
         .collapsible(false)
@@ -65,6 +77,10 @@ fn draw_ui(
             }
 
             ui.separator();
+
+            if ui.button("Reset").clicked() || *reset_window {
+                *reset_window = true;
+            }
 
             // Player Information
             let current_transform = player_query.single().expect("SHOULD BE ONE PLAYER");
@@ -141,10 +157,6 @@ fn draw_ui(
             });
         });
 
-    let window = window_query.single().expect("SHOULD BE ONE WINDOW");
-
-    let window_width = window.width();
-
     // Player modifier UI section
     egui::Window::new("Player Modifiers")
         .collapsible(false)
@@ -161,6 +173,27 @@ fn draw_ui(
             ui.add(egui::Slider::new(&mut player_modifiers.weapon_speed, 2..=7).text("Speed"));
             ui.add(egui::Slider::new(&mut player_modifiers.weapon_range, 1..=10).text("Range"));
         });
+
+    // Sequence reset confirmation window
+    if *reset_window {
+        egui::Window::new("Reset")
+            .collapsible(false)
+            .resizable(false)
+            .movable(false)
+            .current_pos((window_width / 3., window_heigth / 3.))
+            .show(contexts.ctx_mut(), |ui| {
+                ui.label("Are you sure you want to reset?");
+                ui.horizontal(|ui| {
+                    if ui.button("Yes").clicked() {
+                        editing_reset_evw.write(EditingResetEvent);
+                        *reset_window = false;
+                    }
+                    if ui.button("No").clicked() {
+                        *reset_window = false;
+                    }
+                });
+            });
+    }
 }
 
 fn mouse_input(

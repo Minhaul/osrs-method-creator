@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 
+use crate::input::EditingResetEvent;
 use crate::movement::{Destination, Speed};
 use crate::npc::Npc;
-use crate::schedule::{EditingCatchupSet, EditingSet, FreeRoamSet};
-use crate::state::ToolState;
+use crate::schedule::{EditingCatchup, EditingCatchupSet, EditingSet, FreeRoamSet};
+use crate::state::{EditingState, ToolState};
 
 /// Player marker component
 #[derive(Component, Default, Debug)]
@@ -68,10 +69,13 @@ impl Plugin for PlayerPlugin {
                 (despawn_player, spawn_player).chain(),
             )
             .add_systems(
-                OnEnter(ToolState::EditingCatchup),
-                (despawn_player, spawn_player, hide_player).chain(),
+                OnEnter(EditingState::Editing),
+                show_player.run_if(in_state(ToolState::Editing)),
             )
-            .add_systems(OnExit(ToolState::EditingCatchup), show_player)
+            .add_systems(
+                OnExit(EditingState::Editing),
+                hide_player.run_if(in_state(ToolState::Editing)),
+            )
             .add_systems(
                 Update,
                 (update_action, update_modifiers, highlight_destination)
@@ -84,6 +88,13 @@ impl Plugin for PlayerPlugin {
             )
             .add_systems(
                 Update,
+                (despawn_player, spawn_player)
+                    .chain()
+                    .run_if(on_event::<EditingResetEvent>)
+                    .in_set(EditingSet::EntityUpdates),
+            )
+            .add_systems(
+                EditingCatchup,
                 (update_action, update_modifiers).in_set(EditingCatchupSet::EntityUpdates),
             );
     }
@@ -111,7 +122,10 @@ fn despawn_player(mut commands: Commands, mut query: Query<Entity, With<Player>>
 }
 
 fn show_player(mut query: Query<&mut Visibility, With<Player>>) {
-    let mut vis = query.single_mut().expect("SHOULD BE ONE PLAYER");
+    // Don't panic if no player, this is run before startup
+    let Ok(mut vis) = query.single_mut() else {
+        return;
+    };
     *vis = Visibility::Visible;
 }
 
@@ -144,6 +158,7 @@ fn update_action(
 
         // Overwrite the current action with the most recent one
         match &player_action_event.action {
+            // TODO: if dest == current_location {PlayerActon::Idle} instead
             PlayerAction::Move(dest) => commands.entity(entity).insert(Destination(*dest)),
             // TODO
             PlayerAction::Attack(_) => commands.entity(entity).insert(Destination(Vec2::ZERO)),
