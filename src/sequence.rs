@@ -45,7 +45,7 @@ impl Plugin for SequencePlugin {
             )
             .add_systems(
                 EditingCatchup,
-                (send_actions, check_conditions)
+                (check_conditions, send_actions)
                     .chain()
                     .in_set(EditingCatchupChecksSet::Checks),
             )
@@ -131,9 +131,10 @@ fn reset_sequence(mut action_sequence: ResMut<ActionSequence>) {
 }
 
 fn send_actions(
-    action_sequence: ResMut<ActionSequence>,
+    mut action_sequence: ResMut<ActionSequence>,
     mut player_action_evw: EventWriter<PlayerActionEvent>,
     mut player_modifiers: ResMut<PlayerModifiers>,
+    mut next_state: ResMut<NextState<EditingState>>,
 ) {
     let current_tick = action_sequence.current_tick;
     *player_modifiers = action_sequence.sequence[current_tick].1.clone();
@@ -141,43 +142,42 @@ fn send_actions(
     player_action_evw.write(PlayerActionEvent {
         action: action_sequence.sequence[current_tick].0.clone(),
     });
+
+    // Do the proper state transition
+    if current_tick >= action_sequence.target_tick {
+        next_state.set(EditingState::Editing);
+    } else {
+        next_state.set(EditingState::Catchup);
+        action_sequence.current_tick += 1;
+    }
 }
 
 fn check_conditions(
     mut action_sequence: ResMut<ActionSequence>,
-    mut next_state: ResMut<NextState<EditingState>>,
     query: Query<&Transform, With<Player>>,
 ) {
     // Check if the current action is redundant due to changes earlier in the sequence
     let current_tick = action_sequence.current_tick;
     if let PlayerAction::Move(dest) = action_sequence.sequence[current_tick].0 {
         let transform = query.single().expect("SHOULD BE ONE PLAYER");
-        if dest == transform.translation.truncate() {
-            // Already at target location, so change actions from here on to idle
-            let sequence_len = action_sequence.sequence.len();
-            for i in current_tick..sequence_len {
-                if let PlayerAction::Move(dest2) = action_sequence.sequence[i].0 {
-                    if dest != dest2 {
-                        break;
-                    }
+        if dest != transform.translation.truncate() {
+            return;
+        }
 
-                    action_sequence.sequence[i].0 = PlayerAction::Idle;
-                } else {
+        // Already at target location, so change actions from here on to idle
+        let sequence_len = action_sequence.sequence.len();
+        for i in current_tick..sequence_len {
+            if let PlayerAction::Move(dest2) = action_sequence.sequence[i].0 {
+                if dest != dest2 {
                     break;
                 }
+
+                action_sequence.sequence[i].0 = PlayerAction::Idle;
+            } else {
+                break;
             }
         }
     }
-
-    // Do the proper state transition
-    if current_tick >= action_sequence.target_tick {
-        next_state.set(EditingState::Editing);
-        return;
-    } else {
-        next_state.set(EditingState::Catchup);
-    }
-
-    action_sequence.current_tick += 1;
 }
 
 fn transition_to_catchup_checks(mut next_state: ResMut<NextState<EditingState>>) {

@@ -4,7 +4,7 @@ use crate::input::EditingResetEvent;
 use crate::movement::{Destination, Speed};
 use crate::npc::Npc;
 use crate::schedule::{EditingCatchup, EditingCatchupSet, EditingSet, FreeRoamSet};
-use crate::state::{EditingState, ToolState};
+use crate::state::ToolState;
 
 /// Player marker component
 #[derive(Component, Default, Debug)]
@@ -69,14 +69,6 @@ impl Plugin for PlayerPlugin {
                 (despawn_player, spawn_player).chain(),
             )
             .add_systems(
-                OnEnter(EditingState::Editing),
-                show_player.run_if(in_state(ToolState::Editing)),
-            )
-            .add_systems(
-                OnExit(EditingState::Editing),
-                hide_player.run_if(in_state(ToolState::Editing)),
-            )
-            .add_systems(
                 Update,
                 (update_action, update_modifiers, highlight_destination)
                     .in_set(FreeRoamSet::EntityUpdates),
@@ -111,7 +103,6 @@ fn spawn_player(
         Transform::from_translation(Vec3::ZERO),
         Player,
         Speed(2),
-        Visibility::Visible,
     ));
 }
 
@@ -119,19 +110,6 @@ fn despawn_player(mut commands: Commands, mut query: Query<Entity, With<Player>>
     let entity = query.single_mut().expect("SHOULD BE ONE PLAYER");
 
     commands.entity(entity).despawn();
-}
-
-fn show_player(mut query: Query<&mut Visibility, With<Player>>) {
-    // Don't panic if no player, this is run before startup
-    let Ok(mut vis) = query.single_mut() else {
-        return;
-    };
-    *vis = Visibility::Visible;
-}
-
-fn hide_player(mut query: Query<&mut Visibility, With<Player>>) {
-    let mut vis = query.single_mut().expect("SHOULD BE ONE PLAYER");
-    *vis = Visibility::Hidden;
 }
 
 fn spawn_destination(
