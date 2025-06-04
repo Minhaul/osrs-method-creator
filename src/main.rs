@@ -1,3 +1,4 @@
+mod attack;
 mod camera;
 mod debug;
 mod game_ticks;
@@ -13,16 +14,6 @@ mod state;
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 
-use camera::CameraPlugin;
-use debug::DebugPlugin;
-use game_ticks::GameTickPlugin;
-use input::UserInputPlugin;
-use movement::MovementPlugin;
-use player::PlayerPlugin;
-use schedule::SchedulePlugin;
-use sequence::SequencePlugin;
-use state::StatePlugin;
-
 fn main() {
     let mut app = App::new();
 
@@ -37,15 +28,17 @@ fn main() {
     }));
 
     // User defined
-    app.add_plugins(CameraPlugin)
-        .add_plugins(DebugPlugin)
-        .add_plugins(GameTickPlugin)
-        .add_plugins(UserInputPlugin)
-        .add_plugins(MovementPlugin)
-        .add_plugins(PlayerPlugin)
-        .add_plugins(SchedulePlugin)
-        .add_plugins(SequencePlugin)
-        .add_plugins(StatePlugin);
+    app.add_plugins(attack::AttackPlugin)
+        .add_plugins(camera::CameraPlugin)
+        .add_plugins(debug::DebugPlugin)
+        .add_plugins(game_ticks::GameTickPlugin)
+        .add_plugins(input::UserInputPlugin)
+        .add_plugins(movement::MovementPlugin)
+        .add_plugins(npc::NpcPlugin)
+        .add_plugins(player::PlayerPlugin)
+        .add_plugins(schedule::SchedulePlugin)
+        .add_plugins(sequence::SequencePlugin)
+        .add_plugins(state::StatePlugin);
 
     app.run();
 }

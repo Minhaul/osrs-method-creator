@@ -23,7 +23,7 @@ impl Plugin for GameTickPlugin {
         .add_event::<GameTickEvent>()
         .add_systems(
             Update,
-            game_tick_real_time.in_set(FreeRoamSet::EntityUpdates),
+            game_tick_real_time.in_set(FreeRoamSet::GameTick),
         )
         .add_systems(
             EditingCatchup,

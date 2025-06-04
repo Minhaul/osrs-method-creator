@@ -28,7 +28,7 @@ impl Plugin for MovementPlugin {
             Update,
             move_entities
                 .run_if(on_event::<GameTickEvent>)
-                .in_set(FreeRoamSet::EntityUpdates),
+                .in_set(FreeRoamSet::Movement),
         )
         .add_systems(
             EditingCatchup,

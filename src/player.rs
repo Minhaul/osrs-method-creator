@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 
+use crate::attack::{AttackRange, AttackSpeed, Target};
 use crate::input::EditingResetEvent;
 use crate::movement::{Destination, Speed};
-use crate::npc::Npc;
 use crate::schedule::{EditingCatchup, EditingCatchupSet, EditingSet, FreeRoamSet};
 use crate::state::ToolState;
 
 /// Player marker component
 #[derive(Component, Default, Debug)]
+#[require(Transform, Speed)]
 pub struct Player;
 
 /// Marker component for the player's destination tile
@@ -20,7 +21,7 @@ pub enum PlayerAction {
     #[default]
     Idle,
     Move(Vec2),
-    Attack(Npc),
+    Attack(Entity),
 }
 
 impl std::fmt::Display for PlayerAction {
@@ -28,7 +29,7 @@ impl std::fmt::Display for PlayerAction {
         match self {
             PlayerAction::Idle => write!(f, "Idle"),
             PlayerAction::Move(dest) => write!(f, "Move: {dest}"),
-            PlayerAction::Attack(Npc { name, .. }) => write!(f, "Attack: {name}"),
+            PlayerAction::Attack(target) => write!(f, "Attack {target}"),
         }
     }
 }
@@ -97,12 +98,15 @@ fn spawn_player(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    let mods = PlayerModifiers::default();
     commands.spawn((
+        Player,
         Mesh2d(meshes.add(Rectangle::new(1., 1.))),
         MeshMaterial2d(materials.add(Color::srgb(0.5, 1., 0.5))),
         Transform::from_translation(Vec3::ZERO),
-        Player,
-        Speed(2),
+        Speed(if mods.run { 2 } else { 1 }),
+        AttackSpeed(mods.weapon_speed),
+        AttackRange(mods.weapon_range),
     ));
 }
 
@@ -118,10 +122,10 @@ fn spawn_destination(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.spawn((
+        DestinationMarker,
         Mesh2d(meshes.add(Rectangle::new(1., 1.))),
         MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
         Transform::from_translation(Vec3::new(1., 1., 0.)),
-        DestinationMarker,
         Visibility::Hidden,
     ));
 }
@@ -129,29 +133,45 @@ fn spawn_destination(
 fn update_action(
     mut commands: Commands,
     mut player_action_evr: EventReader<PlayerActionEvent>,
-    mut query: Query<Entity, With<Player>>,
+    mut query: Query<(Entity, &Transform), With<Player>>,
 ) {
     for player_action_event in player_action_evr.read() {
-        let entity = query.single_mut().expect("SHOULD BE ONE PLAYER");
+        let (entity, transform) = query.single_mut().expect("SHOULD BE ONE PLAYER");
 
         // Overwrite the current action with the most recent one
         match &player_action_event.action {
-            // TODO: if dest == current_location {PlayerActon::Idle} instead
-            PlayerAction::Move(dest) => commands.entity(entity).insert(Destination(*dest)),
-            // TODO
-            PlayerAction::Attack(_) => commands.entity(entity).insert(Destination(Vec2::ZERO)),
-            PlayerAction::Idle => commands.entity(entity).try_remove::<Destination>(),
+            PlayerAction::Move(dest) => {
+                if transform.translation.truncate() != *dest {
+                    commands.entity(entity).insert(Destination(*dest));
+                    commands.entity(entity).try_remove::<Target>();
+                } else {
+                    // Already at the target destination
+                    commands.entity(entity).try_remove::<Destination>();
+                    commands.entity(entity).try_remove::<Target>();
+                }
+            }
+            PlayerAction::Attack(target) => {
+                commands.entity(entity).insert(Target(*target));
+                commands.entity(entity).try_remove::<Destination>();
+            }
+            PlayerAction::Idle => {
+                commands.entity(entity).try_remove::<Destination>();
+                commands.entity(entity).try_remove::<Target>();
+            }
         };
     }
 }
 
 fn update_modifiers(
     player_modifiers: Res<PlayerModifiers>,
-    mut query: Query<&mut Speed, With<Player>>,
+    mut query: Query<(&mut Speed, &mut AttackSpeed, &mut AttackRange), With<Player>>,
 ) {
-    let mut speed = query.single_mut().expect("SHOULD BE ONE PLAYER WITH SPEED");
+    let (mut speed, mut attack_speed, mut attack_range) =
+        query.single_mut().expect("SHOULD BE ONE PLAYER");
 
     speed.0 = if player_modifiers.run { 2 } else { 1 };
+    attack_speed.0 = player_modifiers.weapon_speed;
+    attack_range.0 = player_modifiers.weapon_range;
 }
 
 fn highlight_destination(

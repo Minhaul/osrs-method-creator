@@ -8,9 +8,11 @@ pub struct EditingCatchup;
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum FreeRoamSet {
     UserInput,
-    SpawnEntities,
-    // TODO: More granular sets i.e. GameTickUpdates, MovementChanges, Attacks
     EntityUpdates,
+    AttackChecks,
+    GameTick,
+    Movement,
+    Attacks,
 }
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -42,8 +44,11 @@ impl Plugin for SchedulePlugin {
             Update,
             (
                 FreeRoamSet::UserInput,
-                FreeRoamSet::SpawnEntities,
                 FreeRoamSet::EntityUpdates,
+                FreeRoamSet::AttackChecks,
+                FreeRoamSet::GameTick,
+                FreeRoamSet::Movement,
+                FreeRoamSet::Attacks,
             )
                 .chain()
                 .run_if(in_state(ToolState::FreeRoam)),

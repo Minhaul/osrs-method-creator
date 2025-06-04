@@ -3,6 +3,7 @@ use bevy_egui::{
     EguiContextPass, EguiContexts, EguiPlugin, egui, input::egui_wants_any_pointer_input,
 };
 
+use crate::npc::{Npc, Size};
 use crate::player::{Player, PlayerAction, PlayerActionEvent, PlayerModifiers};
 use crate::schedule::{EditingSet, FreeRoamSet};
 use crate::sequence::ActionSequence;
@@ -200,6 +201,7 @@ fn mouse_input(
     window_query: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     input: Res<ButtonInput<MouseButton>>,
+    query: Query<(Entity, &Transform, &Size), With<Npc>>,
     mut player_action_evw: EventWriter<PlayerActionEvent>,
 ) {
     if !input.just_pressed(MouseButton::Left) {
@@ -222,7 +224,27 @@ fn mouse_input(
         return;
     };
 
-    player_action_evw.write(PlayerActionEvent {
-        action: PlayerAction::Move(world_position.round()),
-    });
+    let clicked_tile = world_position.round();
+
+    let mut target = Entity::PLACEHOLDER;
+    for (entity, transform, size) in query.iter() {
+        if transform.translation.x <= clicked_tile.x
+            && clicked_tile.x <= transform.translation.x + (size.0 as f32 - 1.)
+            && transform.translation.y <= clicked_tile.y
+            && clicked_tile.y <= transform.translation.y + (size.0 as f32 - 1.)
+        {
+            target = entity;
+            break;
+        }
+    }
+
+    if target != Entity::PLACEHOLDER {
+        player_action_evw.write(PlayerActionEvent {
+            action: PlayerAction::Attack(target),
+        });
+    } else {
+        player_action_evw.write(PlayerActionEvent {
+            action: PlayerAction::Move(world_position.round()),
+        });
+    }
 }
