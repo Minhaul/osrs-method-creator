@@ -13,6 +13,8 @@ mod state;
 #[cfg(feature = "debug")]
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
+#[cfg(feature = "debug")]
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 fn main() {
     let mut app = App::new();
@@ -39,6 +41,9 @@ fn main() {
         .add_plugins(schedule::SchedulePlugin)
         .add_plugins(sequence::SequencePlugin)
         .add_plugins(state::StatePlugin);
+
+    #[cfg(feature = "debug")]
+    app.add_plugins(WorldInspectorPlugin::new());
 
     app.run();
 }

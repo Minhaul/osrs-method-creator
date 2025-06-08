@@ -21,10 +21,7 @@ impl Plugin for GameTickPlugin {
             timer: Timer::from_seconds(GAME_TICK_SECONDS, TimerMode::Repeating),
         })
         .add_event::<GameTickEvent>()
-        .add_systems(
-            Update,
-            game_tick_real_time.in_set(FreeRoamSet::GameTick),
-        )
+        .add_systems(Update, game_tick_real_time.in_set(FreeRoamSet::GameTick))
         .add_systems(
             EditingCatchup,
             game_tick_update.in_set(EditingCatchupSet::GameTick),

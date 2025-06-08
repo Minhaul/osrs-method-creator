@@ -9,8 +9,8 @@ pub struct EditingCatchup;
 pub enum FreeRoamSet {
     UserInput,
     EntityUpdates,
-    AttackChecks,
     GameTick,
+    AttackChecks,
     Movement,
     Attacks,
 }
@@ -20,20 +20,25 @@ pub enum EditingSet {
     ReconcileSequenceLocation,
     UserInput,
     EntityUpdates,
+    AttackChecks,
     SequenceUpdates,
 }
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum EditingCatchupChecksSet {
-    Checks,
+    SequenceChecks,
+    SendActions,
+    Transition,
 }
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum EditingCatchupSet {
-    GameTick,
     EntityUpdates,
+    GameTick,
+    AttackChecks,
     Movement,
-    TransitionToChecks,
+    Attacks,
+    Transition,
 }
 
 pub struct SchedulePlugin;
@@ -45,8 +50,8 @@ impl Plugin for SchedulePlugin {
             (
                 FreeRoamSet::UserInput,
                 FreeRoamSet::EntityUpdates,
-                FreeRoamSet::AttackChecks,
                 FreeRoamSet::GameTick,
+                FreeRoamSet::AttackChecks,
                 FreeRoamSet::Movement,
                 FreeRoamSet::Attacks,
             )
@@ -59,6 +64,7 @@ impl Plugin for SchedulePlugin {
                 EditingSet::ReconcileSequenceLocation,
                 EditingSet::UserInput,
                 EditingSet::EntityUpdates,
+                EditingSet::AttackChecks,
                 EditingSet::SequenceUpdates,
             )
                 .chain()
@@ -67,7 +73,11 @@ impl Plugin for SchedulePlugin {
         )
         .configure_sets(
             EditingCatchup,
-            EditingCatchupChecksSet::Checks
+            (
+                EditingCatchupChecksSet::SequenceChecks,
+                EditingCatchupChecksSet::SendActions,
+                EditingCatchupChecksSet::Transition,
+            )
                 .chain()
                 .run_if(in_state(ToolState::Editing))
                 .run_if(in_state(EditingState::CatchupChecks)),
@@ -75,10 +85,12 @@ impl Plugin for SchedulePlugin {
         .configure_sets(
             EditingCatchup,
             (
-                EditingCatchupSet::GameTick,
                 EditingCatchupSet::EntityUpdates,
+                EditingCatchupSet::GameTick,
+                EditingCatchupSet::AttackChecks,
                 EditingCatchupSet::Movement,
-                EditingCatchupSet::TransitionToChecks,
+                EditingCatchupSet::Attacks,
+                EditingCatchupSet::Transition,
             )
                 .chain()
                 .run_if(in_state(ToolState::Editing))

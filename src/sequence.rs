@@ -45,13 +45,19 @@ impl Plugin for SequencePlugin {
             )
             .add_systems(
                 EditingCatchup,
-                (check_conditions, send_actions)
-                    .chain()
-                    .in_set(EditingCatchupChecksSet::Checks),
+                check_redundancies.in_set(EditingCatchupChecksSet::SequenceChecks),
             )
             .add_systems(
                 EditingCatchup,
-                transition_to_catchup_checks.in_set(EditingCatchupSet::TransitionToChecks),
+                send_actions.in_set(EditingCatchupChecksSet::SendActions),
+            )
+            .add_systems(
+                EditingCatchup,
+                transition_check.in_set(EditingCatchupChecksSet::Transition),
+            )
+            .add_systems(
+                EditingCatchup,
+                transition_to_catchup_checks.in_set(EditingCatchupSet::Transition),
             );
     }
 }
@@ -130,29 +136,7 @@ fn reset_sequence(mut action_sequence: ResMut<ActionSequence>) {
     // TODO: Move player if needed, should be safe to do so with set ordering
 }
 
-fn send_actions(
-    mut action_sequence: ResMut<ActionSequence>,
-    mut player_action_evw: EventWriter<PlayerActionEvent>,
-    mut player_modifiers: ResMut<PlayerModifiers>,
-    mut next_state: ResMut<NextState<EditingState>>,
-) {
-    let current_tick = action_sequence.current_tick;
-    *player_modifiers = action_sequence.sequence[current_tick].1.clone();
-
-    player_action_evw.write(PlayerActionEvent {
-        action: action_sequence.sequence[current_tick].0.clone(),
-    });
-
-    // Do the proper state transition
-    if current_tick >= action_sequence.target_tick {
-        next_state.set(EditingState::Editing);
-    } else {
-        next_state.set(EditingState::Catchup);
-        action_sequence.current_tick += 1;
-    }
-}
-
-fn check_conditions(
+fn check_redundancies(
     mut action_sequence: ResMut<ActionSequence>,
     query: Query<&Transform, With<Player>>,
 ) {
@@ -177,6 +161,32 @@ fn check_conditions(
                 break;
             }
         }
+    }
+}
+
+fn send_actions(
+    action_sequence: Res<ActionSequence>,
+    mut player_action_evw: EventWriter<PlayerActionEvent>,
+    mut player_modifiers: ResMut<PlayerModifiers>,
+) {
+    let current_tick = action_sequence.current_tick;
+    *player_modifiers = action_sequence.sequence[current_tick].1.clone();
+
+    player_action_evw.write(PlayerActionEvent {
+        action: action_sequence.sequence[current_tick].0.clone(),
+    });
+}
+
+fn transition_check(
+    mut action_sequence: ResMut<ActionSequence>,
+    mut next_state: ResMut<NextState<EditingState>>,
+) {
+    // Do the proper state transition
+    if action_sequence.current_tick >= action_sequence.target_tick {
+        next_state.set(EditingState::Editing);
+    } else {
+        next_state.set(EditingState::Catchup);
+        action_sequence.current_tick += 1;
     }
 }
 

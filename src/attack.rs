@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{movement::Destination, npc::Size, schedule::FreeRoamSet};
+use crate::{
+    movement::Destination,
+    npc::Size,
+    schedule::{EditingCatchup, EditingCatchupSet, EditingSet, FreeRoamSet},
+};
 
 /// What entity is being targeted?
 #[derive(Component, Debug)]
@@ -22,7 +26,12 @@ pub struct AttackPlugin;
 
 impl Plugin for AttackPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, check_in_range.in_set(FreeRoamSet::AttackChecks));
+        app.add_systems(Update, check_in_range.in_set(FreeRoamSet::AttackChecks))
+            .add_systems(Update, check_in_range.in_set(EditingSet::AttackChecks))
+            .add_systems(
+                EditingCatchup,
+                check_in_range.in_set(EditingCatchupSet::AttackChecks),
+            );
     }
 }
 
@@ -91,6 +100,7 @@ fn prv_closest_tile_to_entity(start_tile: Vec2, target_sw_tile: Vec2, target_siz
         // Under entity, find closest direction to move out
         let mut closest_dist = u32::MAX;
 
+        // Keep the following in this order to prefer directions the same way the game does
         // North
         let temp_dist = (start_tile.y - (target_sw_tile.y + target_size as f32)).abs() as u32;
         if temp_dist <= closest_dist {
