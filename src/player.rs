@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 use crate::attack::{AttackRange, AttackSpeed, Target};
 use crate::input::EditingResetEvent;
-use crate::movement::{Destination, Speed};
+use crate::movement::{Destination, MovementType, Speed};
+use crate::npc::Size;
 use crate::schedule::{EditingCatchup, EditingCatchupSet, EditingSet, FreeRoamSet};
-use crate::state::ToolState;
 
 /// Player marker component
 #[derive(Component, Default, Debug)]
@@ -66,10 +66,6 @@ impl Plugin for PlayerPlugin {
             .add_event::<PlayerActionEvent>()
             .add_systems(Startup, (spawn_player, spawn_destination))
             .add_systems(
-                OnExit(ToolState::FreeRoam),
-                (despawn_player, spawn_player).chain(),
-            )
-            .add_systems(
                 Update,
                 (update_action, update_modifiers, highlight_destination)
                     .in_set(FreeRoamSet::EntityUpdates),
@@ -107,6 +103,8 @@ fn spawn_player(
         Speed(if mods.run { 2 } else { 1 }),
         AttackSpeed(mods.weapon_speed),
         AttackRange(mods.weapon_range),
+        MovementType::CardinalFirst,
+        Size(1),
     ));
 }
 

@@ -1,33 +1,41 @@
 use bevy::prelude::*;
 
+use crate::attack::Target;
 use crate::input::EditingResetEvent;
+use crate::npc::Npc;
 use crate::player::{Player, PlayerAction, PlayerActionEvent, PlayerModifiers};
 use crate::schedule::{EditingCatchup, EditingCatchupChecksSet, EditingCatchupSet, EditingSet};
 use crate::state::{EditingState, ToolState};
 
-#[derive(Resource, Default, Debug)]
+#[derive(Resource, Debug)]
 pub struct ActionSequence {
     pub target_tick: usize,
     pub current_tick: usize,
     pub sequence: Vec<(PlayerAction, PlayerModifiers)>,
 }
 
+impl Default for ActionSequence {
+    fn default() -> Self {
+        Self {
+            target_tick: Default::default(),
+            current_tick: Default::default(),
+            sequence: vec![(PlayerAction::Idle, PlayerModifiers::default())],
+        }
+    }
+}
+
 pub struct SequencePlugin;
 
 impl Plugin for SequencePlugin {
     fn build(&self, app: &mut App) {
-        let mut action_sequence = ActionSequence::default();
-        action_sequence
-            .sequence
-            .push((PlayerAction::Idle, PlayerModifiers::default()));
-        app.insert_resource(action_sequence)
+        app.insert_resource(ActionSequence::default())
             .add_systems(
                 Update,
-                (editing_catchup_setup, run_editing_catchup)
+                (setup_sequence, run_editing_catchup)
                     .chain()
                     .run_if(in_state(EditingState::Reconciliation)),
             )
-            .add_systems(OnExit(ToolState::FreeRoam), reset_current_tick)
+            .add_systems(OnEnter(ToolState::Editing), setup_sequence)
             .add_systems(
                 Update,
                 check_target_tick.in_set(EditingSet::ReconcileSequenceLocation),
@@ -39,7 +47,8 @@ impl Plugin for SequencePlugin {
             )
             .add_systems(
                 Update,
-                reset_sequence
+                (reset_sequence, setup_sequence)
+                    .chain()
                     .run_if(on_event::<EditingResetEvent>)
                     .in_set(EditingSet::SequenceUpdates),
             )
@@ -62,22 +71,37 @@ impl Plugin for SequencePlugin {
     }
 }
 
-fn reset_current_tick(mut action_sequence: ResMut<ActionSequence>) {
-    action_sequence.current_tick = 0;
-}
-
-fn editing_catchup_setup(
+#[allow(clippy::type_complexity)]
+fn setup_sequence(
+    mut commands: Commands,
     mut action_sequence: ResMut<ActionSequence>,
-    mut query: Query<&mut Transform, With<Player>>,
+    mut player_query: Query<(Entity, &mut Transform), With<Player>>,
+    mut npc_query: Query<(Entity, &mut Transform), (With<Npc>, Without<Player>)>,
+    mut player_action_evw: EventWriter<PlayerActionEvent>,
 ) {
-    if action_sequence.target_tick < action_sequence.current_tick {
-        // Reset sequence and player location, we have to go back!
-        let mut player_transform = query.single_mut().expect("SHOULD BE ONE PLAYER");
-        player_transform.translation.x = 0.;
-        player_transform.translation.y = 0.;
+    // Not .expect() ing here because right now bevy runs the StateTransition schedule
+    // before PreStartup (i.e. the very first schedule run in the whole app),
+    // so this will be run before any of the startup systems get a chance to run.
+    let Ok((player, mut player_transform)) = player_query.single_mut() else {
+        return;
+    };
+    // TODO: save a starting location
+    player_transform.translation.x = 0.;
+    player_transform.translation.y = 0.;
 
-        action_sequence.current_tick = 0;
+    player_action_evw.write(PlayerActionEvent {
+        action: action_sequence.sequence[0].0.clone(),
+    });
+
+    for (npc, mut npc_transform) in npc_query.iter_mut() {
+        commands.entity(npc).insert(Target(player));
+
+        // TODO: have a starting location saved from some config
+        npc_transform.translation.x = 1.;
+        npc_transform.translation.y = 1.;
     }
+
+    action_sequence.current_tick = 0;
 }
 
 fn run_editing_catchup(world: &mut World) {
@@ -130,10 +154,7 @@ fn update_current_modifiers(
 }
 
 fn reset_sequence(mut action_sequence: ResMut<ActionSequence>) {
-    action_sequence.target_tick = 0;
-    action_sequence.current_tick = 0;
-    action_sequence.sequence = vec![(PlayerAction::Idle, PlayerModifiers::default())];
-    // TODO: Move player if needed, should be safe to do so with set ordering
+    *action_sequence = ActionSequence::default();
 }
 
 fn check_redundancies(

@@ -201,7 +201,7 @@ fn mouse_input(
     window_query: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     input: Res<ButtonInput<MouseButton>>,
-    query: Query<(Entity, &Transform, &Size), With<Npc>>,
+    npc_query: Query<(Entity, &Transform, &Size), With<Npc>>,
     mut player_action_evw: EventWriter<PlayerActionEvent>,
 ) {
     if !input.just_pressed(MouseButton::Left) {
@@ -224,10 +224,9 @@ fn mouse_input(
         return;
     };
 
-    let clicked_tile = world_position.round();
-
     let mut target = Entity::PLACEHOLDER;
-    for (entity, transform, size) in query.iter() {
+    for (entity, transform, size) in npc_query.iter() {
+        let clicked_tile = world_position.round();
         if transform.translation.x <= clicked_tile.x
             && clicked_tile.x <= transform.translation.x + (size.0 as f32 - 1.)
             && transform.translation.y <= clicked_tile.y

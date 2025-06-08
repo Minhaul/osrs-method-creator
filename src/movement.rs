@@ -1,4 +1,4 @@
-use bevy::{math::ops::abs, prelude::*};
+use bevy::prelude::*;
 
 use crate::{
     game_ticks::GameTickEvent,
@@ -13,6 +13,12 @@ pub struct Destination(pub Vec2);
 /// Speed in tiles per tick of the Entity
 #[derive(Component, Debug)]
 pub struct Speed(pub u8);
+
+#[derive(Component, Debug)]
+pub enum MovementType {
+    CardinalFirst,
+    DiagonalFirst,
+}
 
 impl Default for Speed {
     fn default() -> Self {
@@ -41,34 +47,73 @@ impl Plugin for MovementPlugin {
 
 fn move_entities(
     mut commands: Commands,
-    mut query: Query<(Entity, &Destination, &Speed, &mut Transform)>,
+    mut query: Query<(Entity, &Destination, &Speed, &MovementType, &mut Transform)>,
 ) {
-    for (entity, destination, speed, mut transform) in query.iter_mut() {
-        let mut distance = destination.0 - transform.translation.truncate();
-
-        let mut speed_left = speed.0;
-
-        // Move to the diagonal if not there already
-        while abs(abs(distance.x) - abs(distance.y)) > 0. && speed_left > 0 {
-            if abs(distance.x) > abs(distance.y) {
-                transform.translation.x += distance.x.signum();
-            } else {
-                transform.translation.y += distance.y.signum();
+    for (entity, destination, speed, movement_type, mut transform) in query.iter_mut() {
+        let first_movement: fn(Vec2, Vec2, u8) -> (Vec2, u8);
+        let second_movement: fn(Vec2, Vec2, u8) -> (Vec2, u8);
+        match movement_type {
+            MovementType::CardinalFirst => {
+                first_movement = prv_move_cardinally;
+                second_movement = prv_move_diagonally;
             }
-
-            distance = destination.0 - transform.translation.truncate();
-            speed_left -= 1;
+            MovementType::DiagonalFirst => {
+                first_movement = prv_move_diagonally;
+                second_movement = prv_move_cardinally;
+            }
         }
 
-        // Move along the diagonal as much as we can or until we reach the destination
-        if speed_left > 0 {
-            let to_travel = (speed_left as f32).min(abs(distance.x));
-            transform.translation.x += to_travel * distance.x.signum();
-            transform.translation.y += to_travel * distance.y.signum();
-        }
+        let (delta_translation, speed_left) =
+            first_movement(transform.translation.truncate(), destination.0, speed.0);
+        transform.translation.x += delta_translation.x;
+        transform.translation.y += delta_translation.y;
+
+        let (delta_translation, _) =
+            second_movement(transform.translation.truncate(), destination.0, speed_left);
+        transform.translation.x += delta_translation.x;
+        transform.translation.y += delta_translation.y;
 
         if transform.translation.truncate() == destination.0 {
             commands.entity(entity).remove::<Destination>();
         }
     }
+}
+
+// Helper to move diagonally, returns the delta movement and speed left
+fn prv_move_diagonally(start: Vec2, destination: Vec2, speed: u8) -> (Vec2, u8) {
+    let mut distance = destination - start;
+
+    let mut delta_translation = Vec2::ZERO;
+    let mut speed_left = speed;
+
+    while distance.x != 0. && distance.y != 0. && speed_left > 0 {
+        delta_translation.x += distance.x.signum();
+        delta_translation.y += distance.y.signum();
+
+        distance = destination - (start + delta_translation);
+        speed_left -= 1;
+    }
+
+    (delta_translation, speed_left)
+}
+
+// Helper to move cardinally, returns the delta movement and speed left
+fn prv_move_cardinally(start: Vec2, destination: Vec2, speed: u8) -> (Vec2, u8) {
+    let mut distance = destination - start;
+
+    let mut delta_translation = Vec2::ZERO;
+    let mut speed_left = speed;
+
+    while (distance.x.abs() - distance.y.abs()).abs() > 0. && speed_left > 0 {
+        if distance.x.abs() > distance.y.abs() {
+            delta_translation.x += distance.x.signum();
+        } else {
+            delta_translation.y += distance.y.signum();
+        }
+
+        distance = destination - (start + delta_translation);
+        speed_left -= 1;
+    }
+
+    (delta_translation, speed_left)
 }
