@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::attack::{AttackRange, AttackSpeed, Target};
+use crate::attack::{AttackRange, AttackSpeed, Target, TargetUnderBehavior, TargetedBy};
 use crate::input::EditingResetEvent;
 use crate::movement::{Destination, MovementType, Speed};
 use crate::npc::Size;
@@ -58,6 +58,11 @@ pub struct PlayerActionEvent {
     pub action: PlayerAction,
 }
 
+enum ClickType {
+    YellowX,
+    RedX,
+}
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
@@ -99,11 +104,12 @@ fn spawn_player(
         Player,
         Mesh2d(meshes.add(Rectangle::new(1., 1.))),
         MeshMaterial2d(materials.add(Color::srgb(0.5, 1., 0.5))),
-        Transform::from_translation(Vec3::ZERO),
+        Transform::from_translation(Vec3::new(0., 0., 0.1)),
         Speed(if mods.run { 2 } else { 1 }),
         AttackSpeed(mods.weapon_speed),
         AttackRange(mods.weapon_range),
         MovementType::CardinalFirst,
+        TargetUnderBehavior::MoveOut,
         Size(1),
     ));
 }
@@ -131,14 +137,16 @@ fn spawn_destination(
 fn update_action(
     mut commands: Commands,
     mut player_action_evr: EventReader<PlayerActionEvent>,
-    mut query: Query<(Entity, &Transform), With<Player>>,
+    mut query: Query<(Entity, &Transform, Option<&TargetedBy>), With<Player>>,
 ) {
     for player_action_event in player_action_evr.read() {
-        let (entity, transform) = query.single_mut().expect("SHOULD BE ONE PLAYER");
+        let (entity, transform, maybe_tb) = query.single_mut().expect("SHOULD BE ONE PLAYER");
 
+        let click_type: ClickType;
         // Overwrite the current action with the most recent one
         match &player_action_event.action {
             PlayerAction::Move(dest) => {
+                click_type = ClickType::YellowX;
                 if transform.translation.truncate() != *dest {
                     commands.entity(entity).insert(Destination(*dest));
                     commands.entity(entity).try_remove::<Target>();
@@ -149,14 +157,31 @@ fn update_action(
                 }
             }
             PlayerAction::Attack(target) => {
+                click_type = ClickType::RedX;
                 commands.entity(entity).insert(Target(*target));
                 commands.entity(entity).try_remove::<Destination>();
             }
             PlayerAction::Idle => {
+                click_type = ClickType::YellowX;
                 commands.entity(entity).try_remove::<Destination>();
                 commands.entity(entity).try_remove::<Target>();
             }
         };
+
+        // Set proper behavior of entities targeting the player when the player
+        // is underneath based on the type of click this action counts as
+        if let Some(targeted_by) = maybe_tb {
+            for targeter in targeted_by.iter() {
+                match click_type {
+                    ClickType::YellowX => commands
+                        .entity(targeter)
+                        .insert(TargetUnderBehavior::RandomCardinal),
+                    ClickType::RedX => commands
+                        .entity(targeter)
+                        .insert(TargetUnderBehavior::StayStill),
+                };
+            }
+        }
     }
 }
 

@@ -1,5 +1,8 @@
 use bevy::prelude::*;
 
+use rand::prelude::*;
+use rand::rng;
+
 use crate::{
     movement::{Destination, MovementOrder},
     npc::Size,
@@ -16,6 +19,14 @@ pub struct Target(pub Entity);
 #[derive(Component, Debug)]
 #[relationship_target(relationship = Target)]
 pub struct TargetedBy(Vec<Entity>);
+
+/// What to do when your target is underneath you
+#[derive(Component, Debug)]
+pub enum TargetUnderBehavior {
+    MoveOut,
+    RandomCardinal,
+    StayStill,
+}
 
 /// Speed of the entity's attack in game ticks
 #[derive(Component, Debug)]
@@ -111,16 +122,17 @@ fn first_check_in_range(
         &Target,
         &AttackRange,
         &Size,
+        &TargetUnderBehavior,
         &MovementOrder,
     )>,
     transforms: Query<&Transform>,
     sizes: Query<&Size>,
 ) -> Result {
     for entry in query.iter() {
-        if entry.5 == &MovementOrder::First {
+        if entry.6 == &MovementOrder::First {
             prv_check_in_range(
                 &mut commands,
-                (entry.0, entry.1, entry.2, entry.3, entry.4),
+                (entry.0, entry.1, entry.2, entry.3, entry.4, entry.5),
                 transforms,
                 sizes,
             )?;
@@ -138,16 +150,17 @@ fn second_check_in_range(
         &Target,
         &AttackRange,
         &Size,
+        &TargetUnderBehavior,
         &MovementOrder,
     )>,
     transforms: Query<&Transform>,
     sizes: Query<&Size>,
 ) -> Result {
     for entry in query.iter() {
-        if entry.5 == &MovementOrder::Second {
+        if entry.6 == &MovementOrder::Second {
             prv_check_in_range(
                 &mut commands,
-                (entry.0, entry.1, entry.2, entry.3, entry.4),
+                (entry.0, entry.1, entry.2, entry.3, entry.4, entry.5),
                 transforms,
                 sizes,
             )?;
@@ -159,7 +172,14 @@ fn second_check_in_range(
 
 fn check_in_range(
     mut commands: Commands,
-    query: Query<(Entity, &Transform, &Target, &AttackRange, &Size)>,
+    query: Query<(
+        Entity,
+        &Transform,
+        &Target,
+        &AttackRange,
+        &Size,
+        &TargetUnderBehavior,
+    )>,
     transforms: Query<&Transform>,
     sizes: Query<&Size>,
 ) -> Result {
@@ -172,11 +192,18 @@ fn check_in_range(
 
 fn prv_check_in_range(
     commands: &mut Commands,
-    entry: (Entity, &Transform, &Target, &AttackRange, &Size),
+    entry: (
+        Entity,
+        &Transform,
+        &Target,
+        &AttackRange,
+        &Size,
+        &TargetUnderBehavior,
+    ),
     transforms: Query<&Transform>,
     sizes: Query<&Size>,
 ) -> Result {
-    let (entity, transform, target, range, size) = entry;
+    let (entity, transform, target, range, size, under_behavior) = entry;
     let target_sw_tile = transforms.get(target.0)?;
     let target_size = sizes.get(target.0)?;
     let dist = prv_distance_to_entity(
@@ -186,25 +213,55 @@ fn prv_check_in_range(
         target_size.0,
     );
 
+    let destination: Option<Vec2>;
     if dist.x.abs() > range.0 as f32
         || dist.y.abs() > range.0 as f32
         // special case for when range is 1
         || (dist.x.abs() == 1. && dist.y.abs() == 1. && range.0 == 1)
-        // under the entity
-        // TODO: Handle this separately for npcs and players
-        || dist == Vec2::ZERO
     {
         // Out of range, move towards target
-        commands
-            .entity(entity)
-            .insert(Destination(prv_closest_tile_to_entity(
+        destination = Some(prv_closest_tile_to_entity(
+            transform.translation.truncate(),
+            size.0,
+            target_sw_tile.translation.truncate(),
+            target_size.0,
+        ));
+    } else if dist == Vec2::ZERO {
+        // under the entity
+        destination = match under_behavior {
+            TargetUnderBehavior::MoveOut => Some(prv_closest_tile_to_entity(
                 transform.translation.truncate(),
                 size.0,
                 target_sw_tile.translation.truncate(),
                 target_size.0,
-            )));
+            )),
+            TargetUnderBehavior::RandomCardinal => {
+                let directions = [
+                    Vec2::new(-1., 0.),
+                    Vec2::new(1., 0.),
+                    Vec2::new(0., -1.),
+                    Vec2::new(0., 1.),
+                ];
+                // TODO: In editing catchup the npc moves erratically because it's not deterministic
+                // random. Should probably use bevy_rand.
+                let mut rng = rng();
+                let Some(direction) = directions.choose(&mut rng) else {
+                    panic!("SHOULD ALWAYS GET DIRECTION");
+                };
+                Some(Vec2::new(
+                    transform.translation.x + direction.x,
+                    transform.translation.y + direction.y,
+                ))
+            }
+            TargetUnderBehavior::StayStill => None,
+        };
     } else {
         // In range! No longer need any destination
+        destination = None;
+    }
+    if let Some(dest) = destination {
+        commands.entity(entity).insert(Destination(dest));
+    } else {
         commands.entity(entity).try_remove::<Destination>();
     }
 

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    attack::{AttackRange, Target},
+    attack::{AttackRange, Target, TargetUnderBehavior},
     movement::{Destination, MovementOrder, MovementType, Speed},
     player::Player,
 };
@@ -54,6 +54,7 @@ fn spawn_npc(
         AttackRange(1),
         MovementType::DiagonalFirst,
         MovementOrder::First,
+        TargetUnderBehavior::RandomCardinal,
         children![(
             Mesh2d(meshes.add(Rectangle::new(size as f32, size as f32))),
             MeshMaterial2d(materials.add(Color::srgb(1., 0.5, 0.5))),
