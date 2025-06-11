@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
 use crate::{
-    movement::Destination,
+    movement::{Destination, MovementOrder},
     npc::Size,
+    player::Player,
     schedule::{EditingCatchup, EditingCatchupSet, EditingSet, FreeRoamSet},
 };
 
@@ -32,13 +33,128 @@ pub struct AttackPlugin;
 
 impl Plugin for AttackPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, check_in_range.in_set(FreeRoamSet::AttackChecks))
-            .add_systems(Update, check_in_range.in_set(EditingSet::AttackChecks))
-            .add_systems(
-                EditingCatchup,
-                check_in_range.in_set(EditingCatchupSet::AttackChecks),
-            );
+        app.add_systems(
+            Update,
+            simultaneous_check.in_set(FreeRoamSet::SimultaneousAttackChecks),
+        )
+        .add_systems(
+            Update,
+            first_check_in_range.in_set(FreeRoamSet::FirstAttackChecks),
+        )
+        .add_systems(
+            Update,
+            second_check_in_range.in_set(FreeRoamSet::SecondAttackChecks),
+        )
+        .add_systems(Update, check_in_range.in_set(EditingSet::AttackChecks))
+        .add_systems(
+            EditingCatchup,
+            simultaneous_check.in_set(EditingCatchupSet::SimultaneousAttackChecks),
+        )
+        .add_systems(
+            EditingCatchup,
+            first_check_in_range.in_set(EditingCatchupSet::FirstAttackChecks),
+        )
+        .add_systems(
+            EditingCatchup,
+            second_check_in_range.in_set(EditingCatchupSet::SecondAttackChecks),
+        );
     }
+}
+
+fn simultaneous_check(
+    mut commands: Commands,
+    player_query: Query<Entity, With<Player>>,
+    query: Query<(&Transform, &Target, &AttackRange, &Size), With<Player>>,
+    transforms: Query<&Transform>,
+    sizes: Query<&Size>,
+) -> Result {
+    // There's a weird special case where the player moves simultaneously with npcs if:
+    // - Their range is 1
+    // - Their dist is (2,2) or one of their x/y dist is 1 and the other is 3
+    let entity = player_query.single()?;
+    let Ok((transform, target, range, size)) = query.single() else {
+        // No target, just default to second
+        commands.entity(entity).insert(MovementOrder::Second);
+        return Ok(());
+    };
+
+    let target_sw_tile = transforms.get(target.0)?;
+    let target_size = sizes.get(target.0)?;
+
+    let dist = prv_distance_to_entity(
+        transform.translation.truncate(),
+        size.0,
+        target_sw_tile.translation.truncate(),
+        target_size.0,
+    );
+
+    let order = if range.0 == 1
+        && (dist.abs() == Vec2::splat(2.)
+            || dist.abs() == Vec2::new(1., 3.)
+            || dist.abs() == Vec2::new(3., 1.))
+    {
+        MovementOrder::First
+    } else {
+        MovementOrder::Second
+    };
+
+    commands.entity(entity).insert(order);
+
+    Ok(())
+}
+
+fn first_check_in_range(
+    mut commands: Commands,
+    query: Query<(
+        Entity,
+        &Transform,
+        &Target,
+        &AttackRange,
+        &Size,
+        &MovementOrder,
+    )>,
+    transforms: Query<&Transform>,
+    sizes: Query<&Size>,
+) -> Result {
+    for entry in query.iter() {
+        if entry.5 == &MovementOrder::First {
+            prv_check_in_range(
+                &mut commands,
+                (entry.0, entry.1, entry.2, entry.3, entry.4),
+                transforms,
+                sizes,
+            )?;
+        }
+    }
+
+    Ok(())
+}
+
+fn second_check_in_range(
+    mut commands: Commands,
+    query: Query<(
+        Entity,
+        &Transform,
+        &Target,
+        &AttackRange,
+        &Size,
+        &MovementOrder,
+    )>,
+    transforms: Query<&Transform>,
+    sizes: Query<&Size>,
+) -> Result {
+    for entry in query.iter() {
+        if entry.5 == &MovementOrder::Second {
+            prv_check_in_range(
+                &mut commands,
+                (entry.0, entry.1, entry.2, entry.3, entry.4),
+                transforms,
+                sizes,
+            )?;
+        }
+    }
+
+    Ok(())
 }
 
 fn check_in_range(
@@ -47,46 +163,49 @@ fn check_in_range(
     transforms: Query<&Transform>,
     sizes: Query<&Size>,
 ) -> Result {
-    for (entity, transform, target, range, size) in query.iter() {
-        let target_sw_tile = transforms.get(target.0)?;
-        let target_size = sizes.get(target.0)?;
-        let dist = prv_distance_to_entity(
-            transform.translation.truncate(),
-            size.0,
-            target_sw_tile.translation.truncate(),
-            target_size.0,
-        );
+    for entry in query.iter() {
+        prv_check_in_range(&mut commands, entry, transforms, sizes)?;
+    }
 
-        if dist.x.abs() > range.0 as f32
-            || dist.y.abs() > range.0 as f32
-            // special case for when range is 1
-            || (dist.x.abs() == 1. && dist.y.abs() == 1. && range.0 == 1)
-            // under the entity
-            // TODO: Handle this separately for npcs and players
-            || dist == Vec2::ZERO
-        {
-            // Out of range, move towards target
-            // TODO: Some incorrect interactions when attacking while npc is moving.
-            //       Seems that, in game, your player will always path for a melee attack
-            //       as if your target has already moved before you on that tick.
-            //       EXCEPT when one of x/y dist is 1 and the other is 3. In that case,
-            //       your player paths for a melee attack as if the target hasn't moved
-            //       before you and you end up under them if they're bigger than 1x1.
-            //       Why???? I can't figure it out, because every other tile around those
-            //       works normally. But it's a set of conditions I can check for to encode
-            //       the edge case so I'll do it.
-            commands
-                .entity(entity)
-                .insert(Destination(prv_closest_tile_to_entity(
-                    transform.translation.truncate(),
-                    size.0,
-                    target_sw_tile.translation.truncate(),
-                    target_size.0,
-                )));
-        } else {
-            // In range! No longer need any destination
-            commands.entity(entity).try_remove::<Destination>();
-        }
+    Ok(())
+}
+
+fn prv_check_in_range(
+    commands: &mut Commands,
+    entry: (Entity, &Transform, &Target, &AttackRange, &Size),
+    transforms: Query<&Transform>,
+    sizes: Query<&Size>,
+) -> Result {
+    let (entity, transform, target, range, size) = entry;
+    let target_sw_tile = transforms.get(target.0)?;
+    let target_size = sizes.get(target.0)?;
+    let dist = prv_distance_to_entity(
+        transform.translation.truncate(),
+        size.0,
+        target_sw_tile.translation.truncate(),
+        target_size.0,
+    );
+
+    if dist.x.abs() > range.0 as f32
+        || dist.y.abs() > range.0 as f32
+        // special case for when range is 1
+        || (dist.x.abs() == 1. && dist.y.abs() == 1. && range.0 == 1)
+        // under the entity
+        // TODO: Handle this separately for npcs and players
+        || dist == Vec2::ZERO
+    {
+        // Out of range, move towards target
+        commands
+            .entity(entity)
+            .insert(Destination(prv_closest_tile_to_entity(
+                transform.translation.truncate(),
+                size.0,
+                target_sw_tile.translation.truncate(),
+                target_size.0,
+            )));
+    } else {
+        // In range! No longer need any destination
+        commands.entity(entity).try_remove::<Destination>();
     }
 
     Ok(())

@@ -10,8 +10,11 @@ pub enum FreeRoamSet {
     UserInput,
     EntityUpdates,
     GameTick,
-    AttackChecks,
-    Movement,
+    SimultaneousAttackChecks,
+    FirstAttackChecks,
+    FirstMovement,
+    SecondAttackChecks,
+    SecondMovement,
     Attacks,
 }
 
@@ -35,8 +38,11 @@ pub enum EditingCatchupChecksSet {
 pub enum EditingCatchupSet {
     EntityUpdates,
     GameTick,
-    AttackChecks,
-    Movement,
+    SimultaneousAttackChecks,
+    FirstAttackChecks,
+    FirstMovement,
+    SecondAttackChecks,
+    SecondMovement,
     Attacks,
     Transition,
 }
@@ -51,8 +57,11 @@ impl Plugin for SchedulePlugin {
                 FreeRoamSet::UserInput,
                 FreeRoamSet::EntityUpdates,
                 FreeRoamSet::GameTick,
-                FreeRoamSet::AttackChecks,
-                FreeRoamSet::Movement,
+                FreeRoamSet::SimultaneousAttackChecks,
+                FreeRoamSet::FirstAttackChecks,
+                FreeRoamSet::FirstMovement,
+                FreeRoamSet::SecondAttackChecks,
+                FreeRoamSet::SecondMovement,
                 FreeRoamSet::Attacks,
             )
                 .chain()
@@ -87,8 +96,11 @@ impl Plugin for SchedulePlugin {
             (
                 EditingCatchupSet::EntityUpdates,
                 EditingCatchupSet::GameTick,
-                EditingCatchupSet::AttackChecks,
-                EditingCatchupSet::Movement,
+                EditingCatchupSet::SimultaneousAttackChecks,
+                EditingCatchupSet::FirstAttackChecks,
+                EditingCatchupSet::FirstMovement,
+                EditingCatchupSet::SecondAttackChecks,
+                EditingCatchupSet::SecondMovement,
                 EditingCatchupSet::Attacks,
                 EditingCatchupSet::Transition,
             )

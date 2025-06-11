@@ -14,10 +14,18 @@ pub struct Destination(pub Vec2);
 #[derive(Component, Debug)]
 pub struct Speed(pub u8);
 
+/// How the entity moves
 #[derive(Component, Debug)]
 pub enum MovementType {
     CardinalFirst,
     DiagonalFirst,
+}
+
+/// The ordering of movement
+#[derive(Component, Debug, PartialEq)]
+pub enum MovementOrder {
+    First,
+    Second,
 }
 
 impl Default for Speed {
@@ -32,50 +40,106 @@ impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            move_entities
+            move_first
                 .run_if(on_event::<GameTickEvent>)
-                .in_set(FreeRoamSet::Movement),
+                .in_set(FreeRoamSet::FirstMovement),
+        )
+        .add_systems(
+            Update,
+            move_second
+                .run_if(on_event::<GameTickEvent>)
+                .in_set(FreeRoamSet::SecondMovement),
         )
         .add_systems(
             EditingCatchup,
-            move_entities
+            move_first
                 .run_if(on_event::<GameTickEvent>)
-                .in_set(EditingCatchupSet::Movement),
+                .in_set(EditingCatchupSet::FirstMovement),
+        )
+        .add_systems(
+            EditingCatchup,
+            move_second
+                .run_if(on_event::<GameTickEvent>)
+                .in_set(EditingCatchupSet::SecondMovement),
         );
     }
 }
 
-fn move_entities(
+fn move_first(
     mut commands: Commands,
-    mut query: Query<(Entity, &Destination, &Speed, &MovementType, &mut Transform)>,
+    mut query: Query<(
+        Entity,
+        &Destination,
+        &Speed,
+        &MovementType,
+        &mut Transform,
+        &MovementOrder,
+    )>,
 ) {
-    for (entity, destination, speed, movement_type, mut transform) in query.iter_mut() {
-        let first_movement: fn(Vec2, Vec2, u8) -> (Vec2, u8);
-        let second_movement: fn(Vec2, Vec2, u8) -> (Vec2, u8);
-        match movement_type {
-            MovementType::CardinalFirst => {
-                first_movement = prv_move_cardinally;
-                second_movement = prv_move_diagonally;
-            }
-            MovementType::DiagonalFirst => {
-                first_movement = prv_move_diagonally;
-                second_movement = prv_move_cardinally;
-            }
+    for mut entry in query.iter_mut() {
+        if entry.5 == &MovementOrder::First {
+            prv_move_entities(
+                &mut commands,
+                (entry.0, entry.1, entry.2, entry.3),
+                &mut entry.4,
+            );
         }
+    }
+}
 
-        let (delta_translation, speed_left) =
-            first_movement(transform.translation.truncate(), destination.0, speed.0);
-        transform.translation.x += delta_translation.x;
-        transform.translation.y += delta_translation.y;
-
-        let (delta_translation, _) =
-            second_movement(transform.translation.truncate(), destination.0, speed_left);
-        transform.translation.x += delta_translation.x;
-        transform.translation.y += delta_translation.y;
-
-        if transform.translation.truncate() == destination.0 {
-            commands.entity(entity).remove::<Destination>();
+fn move_second(
+    mut commands: Commands,
+    mut query: Query<(
+        Entity,
+        &Destination,
+        &Speed,
+        &MovementType,
+        &mut Transform,
+        &MovementOrder,
+    )>,
+) {
+    for mut entry in query.iter_mut() {
+        if entry.5 == &MovementOrder::Second {
+            prv_move_entities(
+                &mut commands,
+                (entry.0, entry.1, entry.2, entry.3),
+                &mut entry.4,
+            );
         }
+    }
+}
+
+fn prv_move_entities(
+    commands: &mut Commands,
+    entry: (Entity, &Destination, &Speed, &MovementType),
+    transform: &mut Transform,
+) {
+    let (entity, destination, speed, movement_type) = entry;
+    let first_movement: fn(Vec2, Vec2, u8) -> (Vec2, u8);
+    let second_movement: fn(Vec2, Vec2, u8) -> (Vec2, u8);
+    match movement_type {
+        MovementType::CardinalFirst => {
+            first_movement = prv_move_cardinally;
+            second_movement = prv_move_diagonally;
+        }
+        MovementType::DiagonalFirst => {
+            first_movement = prv_move_diagonally;
+            second_movement = prv_move_cardinally;
+        }
+    }
+
+    let (delta_translation, speed_left) =
+        first_movement(transform.translation.truncate(), destination.0, speed.0);
+    transform.translation.x += delta_translation.x;
+    transform.translation.y += delta_translation.y;
+
+    let (delta_translation, _) =
+        second_movement(transform.translation.truncate(), destination.0, speed_left);
+    transform.translation.x += delta_translation.x;
+    transform.translation.y += delta_translation.y;
+
+    if transform.translation.truncate() == destination.0 {
+        commands.entity(entity).remove::<Destination>();
     }
 }
 
