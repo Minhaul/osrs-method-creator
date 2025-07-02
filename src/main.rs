@@ -9,12 +9,16 @@ mod player;
 mod schedule;
 mod sequence;
 mod state;
+mod world;
 
 #[cfg(feature = "debug")]
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 #[cfg(feature = "debug")]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+
+/// Scale of gizmo line width, proportional to the projection scale
+const GIZMO_LINE_WIDTH_SCALE: f32 = 0.09;
 
 fn main() {
     let mut app = App::new();
@@ -40,10 +44,33 @@ fn main() {
         .add_plugins(player::PlayerPlugin)
         .add_plugins(schedule::SchedulePlugin)
         .add_plugins(sequence::SequencePlugin)
-        .add_plugins(state::StatePlugin);
+        .add_plugins(state::StatePlugin)
+        .add_plugins(world::WorldPlugin);
 
     #[cfg(feature = "debug")]
     app.add_plugins(WorldInspectorPlugin::new());
 
+    app.add_systems(Startup, configure_gizmos)
+        .add_systems(Update, update_gizmos);
+
     app.run();
+}
+
+fn configure_gizmos(mut config_store: ResMut<GizmoConfigStore>) {
+    let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
+
+    config.line.joints = GizmoLineJoint::None;
+}
+
+fn update_gizmos(
+    mut config_store: ResMut<GizmoConfigStore>,
+    query: Query<&Projection, Changed<Projection>>,
+) {
+    let Ok(Projection::Orthographic(ortho)) = query.single() else {
+        return;
+    };
+
+    let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
+
+    config.line.width = GIZMO_LINE_WIDTH_SCALE / ortho.scale;
 }

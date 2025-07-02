@@ -8,8 +8,8 @@ use bevy::{
 /// How zoomed by default
 const DEFAULT_PROJ_SCALE: f32 = 0.05;
 
-const PROJ_SCALE_MIN: f32 = 0.002;
-const PROJ_SCALE_MAX: f32 = 0.2;
+const PROJ_SCALE_MIN: f32 = 0.005;
+const PROJ_SCALE_MAX: f32 = 0.1;
 
 /// The amount to zoom per scroll line unit
 const SCROLL_LINE_SCALE: f32 = 1.1;
@@ -18,7 +18,7 @@ const SCROLL_LINE_SCALE: f32 = 1.1;
 const SCROLL_PIXEL_SCALE: f32 = 1.001;
 
 /// The speed of panning using keyboard keys
-const KEY_PAN_SPEED: f32 = 2.0;
+const KEY_PAN_SPEED: f32 = 4.0;
 
 pub struct CameraPlugin;
 
@@ -33,7 +33,7 @@ impl Plugin for CameraPlugin {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera2d,
-        Msaa::Off,
+        Msaa::Sample2,
         Projection::Orthographic(OrthographicProjection {
             scale: DEFAULT_PROJ_SCALE,
             ..OrthographicProjection::default_2d()
@@ -75,7 +75,7 @@ fn pan_camera(
     mouse_input: Res<ButtonInput<MouseButton>>,
     key_input: Res<ButtonInput<KeyCode>>,
     mut motion_evr: EventReader<MouseMotion>,
-    mut query: Query<(&Projection, &mut Transform), With<Camera>>,
+    mut query: Query<(&mut Projection, &mut Transform), With<Camera>>,
 ) {
     let mut delta = Vec2::ZERO;
 
@@ -102,9 +102,11 @@ fn pan_camera(
         return;
     }
 
-    let (projection, mut transform) = query.single_mut().expect("SHOULD BE ONE OF THESE");
+    let (mut projection, mut transform) = query.single_mut().expect("SHOULD BE ONE OF THESE");
 
-    match projection {
+    // We don't actually change the projection here but we kind of are in a sense so deref_mut() to
+    // trigger change detection
+    match projection.deref_mut() {
         Projection::Orthographic(ortho) => {
             transform.translation.x -= delta.x * ortho.scale;
             transform.translation.y += delta.y * ortho.scale;

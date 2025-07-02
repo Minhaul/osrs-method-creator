@@ -6,6 +6,9 @@ use crate::{
     player::Player,
 };
 
+/// Default color of npcs
+const NPC_COLOR: Color = Color::srgba(1., 0.5, 0.5, 0.125);
+
 #[derive(Component, Debug, Clone, PartialEq)]
 #[require(Transform, Speed)]
 pub struct Npc {
@@ -32,7 +35,8 @@ pub struct NpcPlugin;
 impl Plugin for NpcPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (spawn_npc, spawn_npc_destination))
-            .add_systems(PostStartup, target_player);
+            .add_systems(PostStartup, target_player)
+            .add_systems(Update, draw_npc);
         #[cfg(feature = "debug")]
         app.add_systems(Update, highlight_npc_destination);
     }
@@ -57,7 +61,7 @@ fn spawn_npc(
         TargetUnderBehavior::RandomCardinal,
         children![(
             Mesh2d(meshes.add(Rectangle::new(size as f32, size as f32))),
-            MeshMaterial2d(materials.add(Color::srgb(1., 0.5, 0.5))),
+            MeshMaterial2d(materials.add(NPC_COLOR)),
             Transform::from_translation(Vec3::new(
                 (size as f32 - 1.) / 2.,
                 (size as f32 - 1.) / 2.,
@@ -79,6 +83,20 @@ fn spawn_npc_destination(
         Transform::from_translation(Vec3::new(1., 1., 0.)),
         Visibility::Hidden,
     ));
+}
+
+fn draw_npc(mut gizmos: Gizmos, query: Query<(&Transform, &Size), With<Npc>>) {
+    for (transform, size) in query.iter() {
+        let mut color = NPC_COLOR;
+        color.set_alpha(1.);
+        gizmos.rect_2d(
+            Isometry2d::from_translation(
+                transform.translation.truncate() + (size.0 as f32 / 2. - 0.5),
+            ),
+            Vec2::splat(size.0 as f32),
+            color,
+        );
+    }
 }
 
 fn target_player(

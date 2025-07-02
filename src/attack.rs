@@ -82,6 +82,10 @@ fn simultaneous_check(
     // There's a weird special case where the player moves simultaneously with npcs if:
     // - Their range is 1
     // - Their dist is (2,2) or one of their x/y dist is 1 and the other is 3
+    //
+    // This actually seems to happen in more cases than just this, but it seems like a pain to
+    // actually figure out all the details of and implement right now so I'm just going to leave it
+    // as it is for now.
     let entity = player_query.single()?;
     let Ok((transform, target, range, size)) = query.single() else {
         // No target, just default to second
@@ -236,11 +240,12 @@ fn prv_check_in_range(
                 target_size.0,
             )),
             TargetUnderBehavior::RandomCardinal => {
+                // Nothing is going to have speed > 10 so this is probably fine
                 let directions = [
-                    Vec2::new(-1., 0.),
-                    Vec2::new(1., 0.),
-                    Vec2::new(0., -1.),
-                    Vec2::new(0., 1.),
+                    Vec2::new(-10., 0.),
+                    Vec2::new(10., 0.),
+                    Vec2::new(0., -10.),
+                    Vec2::new(0., 10.),
                 ];
                 // TODO: In editing catchup the npc moves erratically because it's not deterministic
                 // random. Should probably use bevy_rand.

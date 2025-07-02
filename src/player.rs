@@ -6,6 +6,14 @@ use crate::movement::{Destination, MovementType, Speed};
 use crate::npc::Size;
 use crate::schedule::{EditingCatchup, EditingCatchupSet, EditingSet, FreeRoamSet};
 
+/// Default colors for the player, based off of the default true tile color in runelite
+const PLAYER_COLOR: Color = Color::srgba_u8(59, 157, 155, 255);
+const PLAYER_FILL_COLOR: Color = Color::srgba_u8(30, 83, 82, 50);
+
+/// Default colors for the player's destination, based off of the default in runelite
+const DESTINATION_COLOR: Color = Color::srgb(0.5, 0.5, 0.5);
+const DESTINATION_FILL_COLOR: Color = Color::srgba(0., 0., 0., 0.2);
+
 /// Player marker component
 #[derive(Component, Default, Debug)]
 #[require(Transform, Speed)]
@@ -90,7 +98,8 @@ impl Plugin for PlayerPlugin {
             .add_systems(
                 EditingCatchup,
                 (update_action, update_modifiers).in_set(EditingCatchupSet::EntityUpdates),
-            );
+            )
+            .add_systems(Update, draw_player);
     }
 }
 
@@ -103,7 +112,7 @@ fn spawn_player(
     commands.spawn((
         Player,
         Mesh2d(meshes.add(Rectangle::new(1., 1.))),
-        MeshMaterial2d(materials.add(Color::srgb(0.5, 1., 0.5))),
+        MeshMaterial2d(materials.add(PLAYER_FILL_COLOR)),
         Transform::from_translation(Vec3::new(0., 0., 0.1)),
         Speed(if mods.run { 2 } else { 1 }),
         AttackSpeed(mods.weapon_speed),
@@ -128,10 +137,19 @@ fn spawn_destination(
     commands.spawn((
         DestinationMarker,
         Mesh2d(meshes.add(Rectangle::new(1., 1.))),
-        MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 0.5))),
+        MeshMaterial2d(materials.add(DESTINATION_FILL_COLOR)),
         Transform::from_translation(Vec3::new(1., 1., 0.)),
         Visibility::Hidden,
     ));
+}
+
+fn draw_player(mut gizmos: Gizmos, query: Query<&Transform, With<Player>>) {
+    let transform = query.single().expect("SHOULD BE ONE PLAYER");
+    gizmos.rect_2d(
+        Isometry2d::from_translation(transform.translation.truncate()),
+        Vec2::ONE,
+        PLAYER_COLOR,
+    );
 }
 
 fn update_action(
@@ -198,6 +216,7 @@ fn update_modifiers(
 }
 
 fn highlight_destination(
+    mut gizmos: Gizmos,
     mut marker_query: Query<(&mut Transform, &mut Visibility), With<DestinationMarker>>,
     player_query: Query<&Destination, With<Player>>,
 ) {
@@ -212,6 +231,12 @@ fn highlight_destination(
     };
     destination_marker_transform.translation.x = location.x;
     destination_marker_transform.translation.y = location.y;
+
+    gizmos.rect_2d(
+        Isometry2d::from_translation(destination_marker_transform.translation.truncate()),
+        Vec2::ONE,
+        DESTINATION_COLOR,
+    );
 
     *destination_marker_visibility = Visibility::Visible;
 }
